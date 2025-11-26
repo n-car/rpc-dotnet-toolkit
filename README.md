@@ -294,6 +294,13 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [rpc-express-toolkit](https://github.com/n-car/rpc-express-toolkit) - Node.js/Express implementation
 - [rpc-php-toolkit](https://github.com/n-car/rpc-php-toolkit) - PHP implementation
 
+## 📞 Links
+
+- **GitHub**: https://github.com/n-car/rpc-dotnet-toolkit
+- **Issues**: https://github.com/n-car/rpc-dotnet-toolkit/issues
+- **Discussions**: https://github.com/n-car/rpc-dotnet-toolkit/discussions
+- **NuGet**: Coming soon
+
 ---
 
 **RPC .NET Toolkit** - Enterprise JSON-RPC 2.0 for .NET with multi-targeting support.

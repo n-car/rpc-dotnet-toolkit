@@ -276,10 +276,10 @@ All tests passing, build successful across all target frameworks.
 
 ## 📞 Contact & Links
 
-- **Repository**: https://github.com/n-car/rpc-dotnet-toolkit (not yet published)
+- **Repository**: https://github.com/n-car/rpc-dotnet-toolkit ✅
 - **NuGet**: Not yet published
-- **Issues**: Not yet available
-- **Discussions**: Not yet available
+- **Issues**: https://github.com/n-car/rpc-dotnet-toolkit/issues ✅
+- **Discussions**: https://github.com/n-car/rpc-dotnet-toolkit/discussions ✅
 
 ---
 

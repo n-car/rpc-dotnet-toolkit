@@ -294,6 +294,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [rpc-express-toolkit](https://github.com/n-car/rpc-express-toolkit) - Node.js/Express implementation
 - [rpc-php-toolkit](https://github.com/n-car/rpc-php-toolkit) - PHP implementation
 - [rpc-arduino-toolkit](https://github.com/n-car/rpc-arduino-toolkit) - Arduino/ESP32 implementation
+- [rpc-java-toolkit](https://github.com/n-car/rpc-java-toolkit) - Java & Android implementation
+- [node-red-contrib-rpc-toolkit](https://github.com/n-car/node-red-contrib-rpc-toolkit) - Node-RED visual programming
 
 ## 📞 Links
 

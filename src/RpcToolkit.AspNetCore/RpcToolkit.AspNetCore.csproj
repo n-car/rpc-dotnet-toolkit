@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net6.0;net8.0</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <Version>1.0.0-beta.1</Version>
+    <Authors>RPC Toolkit Team</Authors>
+    <Description>ASP.NET Core integration for RPC Toolkit - Middleware, DI, and endpoint routing support</Description>
+    <PackageTags>rpc;jsonrpc;aspnetcore;middleware;api</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\RpcToolkit\RpcToolkit.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+</Project>

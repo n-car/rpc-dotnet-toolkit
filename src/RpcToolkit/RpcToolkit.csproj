@@ -41,7 +41,7 @@
 
   <!-- Schema Validation -->
   <ItemGroup>
-    <PackageReference Include="NJsonSchema" Version="11.0.0" />
+    <PackageReference Include="NJsonSchema" Version="11.0.2" />
   </ItemGroup>
 
   <!-- Include README in package -->

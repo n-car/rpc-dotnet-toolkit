@@ -76,6 +76,8 @@ builder.Services.AddRpcEndpoint(
 
 var app = builder.Build();
 
+app.UseRpcClientScripts();
+
 app.UseRpc(new RpcMiddlewareOptions
 {
     Path = "/rpc",
@@ -89,6 +91,43 @@ app.Run();
 ```
 
 The ASP.NET Core adapter creates an `RpcRequestContext` from `HttpContext`, including headers and `HttpContext.User`.
+
+## Browser Client Assets
+
+`RpcToolkit.AspNetCore` embeds the shared `rpc-toolkit-js-client` browser bundles. Serve them with middleware:
+
+```csharp
+app.UseRpcClientScripts("/vendor/rpc-client");
+```
+
+Or with endpoint routing:
+
+```csharp
+app.MapRpcClientScripts();
+```
+
+Default files:
+
+```text
+/vendor/rpc-client/rpc-client.js
+/vendor/rpc-client/rpc-client.min.js
+/vendor/rpc-client/rpc-client.mjs
+/vendor/rpc-client/rpc-client.min.mjs
+```
+
+Then load the global browser build:
+
+```html
+<script src="/vendor/rpc-client/rpc-client.min.js"></script>
+```
+
+Or the module build:
+
+```html
+<script type="module">
+  import { RpcClient } from "/vendor/rpc-client/rpc-client.mjs";
+</script>
+```
 
 ## Route-Level 401 vs JSON-RPC Errors
 

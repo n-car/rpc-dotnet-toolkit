@@ -6,6 +6,7 @@ Runnable ASP.NET Core server using `RpcToolkit.AspNetCore`.
 
 - ASP.NET Core hosting at `/rpc`
 - health endpoint at `/health`
+- browser client assets at `/vendor/rpc-client`
 - calculator methods
 - user methods
 - batch requests
@@ -22,6 +23,7 @@ dotnet run
 ```
 
 The server listens on the URLs configured by ASP.NET Core. The RPC path is `/rpc`.
+The browser client is served from `/vendor/rpc-client/rpc-client.min.js`.
 
 ## Ping
 

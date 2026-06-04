@@ -97,6 +97,50 @@ catch (AuthenticationErrorException)
 
 A browser client is different from the C# client. If the page is already served through an authenticated channel, do not add a second Bearer token unless your application explicitly needs it.
 
+The shared JavaScript client lives in the separate `rpc-toolkit-js-client` project. ASP.NET Core hosts can serve the embedded browser bundles from `RpcToolkit.AspNetCore`:
+
+```csharp
+app.UseRpcClientScripts();
+```
+
+Default asset paths:
+
+```text
+/vendor/rpc-client/rpc-client.js
+/vendor/rpc-client/rpc-client.min.js
+/vendor/rpc-client/rpc-client.mjs
+/vendor/rpc-client/rpc-client.min.mjs
+```
+
+Browser global build:
+
+```html
+<script src="/vendor/rpc-client/rpc-client.min.js"></script>
+<script>
+  (async () => {
+    const client = new RpcToolkitClient.RpcClient("/rpc", {}, {
+      fetchOptions: { credentials: "same-origin" }
+    });
+
+    const status = await client.call("tray.status");
+  })();
+</script>
+```
+
+Browser module build:
+
+```html
+<script type="module">
+  import { RpcClient } from "/vendor/rpc-client/rpc-client.mjs";
+
+  const client = new RpcClient("/rpc", {}, {
+    fetchOptions: { credentials: "same-origin" }
+  });
+
+  const status = await client.call("tray.status");
+</script>
+```
+
 Typical browser behavior:
 
 ```javascript

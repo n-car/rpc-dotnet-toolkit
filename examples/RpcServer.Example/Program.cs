@@ -149,6 +149,9 @@ builder.Services.AddRpcEndpoint(
 
 var app = builder.Build();
 
+// Serve the shared browser client at /vendor/rpc-client.
+app.UseRpcClientScripts();
+
 // Configure middleware pipeline
 app.UseRpc(new RpcMiddlewareOptions
 {

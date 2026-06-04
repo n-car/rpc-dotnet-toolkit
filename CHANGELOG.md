@@ -25,6 +25,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 - N/A
 
+## [1.1.3] - 2026-06-04
+
+### Changed
+- Updated embedded `RpcToolkit.AspNetCore` browser client assets to `rpc-toolkit-js-client` `v1.1.0`.
+
 ## [1.1.2] - 2026-06-04
 
 ### Added

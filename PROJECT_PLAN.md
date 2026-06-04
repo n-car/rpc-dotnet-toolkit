@@ -7,9 +7,9 @@ This document is the active project status and roadmap. Older phase checklists w
 ## Current Releases
 
 - `RpcToolkit`: `1.1.1`
-- `RpcToolkit.AspNetCore`: `1.1.2-beta.1`
-- Shared browser/Node client: `rpc-toolkit-js-client` `1.0.0`
-- Express adapter compatibility target: `rpc-express-toolkit` `4.2.3`
+- `RpcToolkit.AspNetCore`: `1.1.3-beta.1`
+- Shared browser/Node client: `rpc-toolkit-js-client` `1.1.0`
+- Express adapter compatibility target: `rpc-express-toolkit` `4.3.1`
 
 ## Current Architecture
 

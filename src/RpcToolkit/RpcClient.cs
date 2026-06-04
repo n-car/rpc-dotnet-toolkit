@@ -69,6 +69,11 @@ namespace RpcToolkit
                 _httpClient.DefaultRequestHeaders.Add(header.Key, header.Value);
             }
 
+            if (!_options.Headers.Keys.Any(key => string.Equals(key, "X-RPC-Safe-Enabled", StringComparison.OrdinalIgnoreCase)))
+            {
+                _httpClient.DefaultRequestHeaders.Add("X-RPC-Safe-Enabled", _options.SafeEnabled ? "true" : "false");
+            }
+
             _logger?.LogInformation("RpcClient initialized for {BaseUrl}", _baseUrl);
         }
 
@@ -106,7 +111,8 @@ namespace RpcToolkit
             _logger?.LogDebug("Calling method {Method} with ID {RequestId}", method, requestId);
 
             var response = await SendRequestAsync(jsonRequest);
-            var rpcResponse = SerializerFactory.Deserialize<RpcResponse>(response, _options.SafeEnabled);
+            var responseSafeEnabled = response.SafeEnabled ?? _options.SafeEnabled;
+            var rpcResponse = SerializerFactory.Deserialize<RpcResponse>(response.Content, responseSafeEnabled);
 
             if (rpcResponse == null)
             {
@@ -124,8 +130,8 @@ namespace RpcToolkit
             }
 
             // Convert result to target type
-            var resultJson = SerializerFactory.Serialize(rpcResponse.Result, _options.SafeEnabled);
-            return SerializerFactory.Deserialize<TResult>(resultJson, _options.SafeEnabled);
+            var resultJson = SerializerFactory.Serialize(rpcResponse.Result, responseSafeEnabled);
+            return SerializerFactory.Deserialize<TResult>(resultJson, responseSafeEnabled);
         }
 
         /// <summary>
@@ -144,7 +150,8 @@ namespace RpcToolkit
             _logger?.LogDebug("Sending batch request with {Count} calls", requestList.Count);
 
             var response = await SendRequestAsync(jsonRequest);
-            var rpcResponses = SerializerFactory.Deserialize<List<RpcResponse>>(response, _options.SafeEnabled);
+            var responseSafeEnabled = response.SafeEnabled ?? _options.SafeEnabled;
+            var rpcResponses = SerializerFactory.Deserialize<List<RpcResponse>>(response.Content, responseSafeEnabled);
 
             if (rpcResponses == null)
             {
@@ -170,7 +177,7 @@ namespace RpcToolkit
         /// <summary>
         /// Send raw JSON-RPC request
         /// </summary>
-        private async Task<string> SendRequestAsync(string jsonRequest)
+        private async Task<RpcHttpResponse> SendRequestAsync(string jsonRequest)
         {
             try
             {
@@ -180,14 +187,15 @@ namespace RpcToolkit
                 httpResponse.EnsureSuccessStatusCode();
 
                 var responseContent = await httpResponse.Content.ReadAsStringAsync();
+                var safeEnabled = ReadSafeModeHeader(httpResponse);
                 
                 // Notifications may return empty response
                 if (string.IsNullOrWhiteSpace(responseContent))
                 {
-                    return "{}";
+                    return new RpcHttpResponse("{}", safeEnabled);
                 }
 
-                return responseContent;
+                return new RpcHttpResponse(responseContent, safeEnabled);
             }
             catch (HttpRequestException ex)
             {
@@ -199,6 +207,21 @@ namespace RpcToolkit
                 _logger?.LogError(ex, "Request timeout");
                 throw new InternalErrorException("Request timeout", ex);
             }
+        }
+
+        private static bool? ReadSafeModeHeader(HttpResponseMessage response)
+        {
+            if (response.Headers.TryGetValues("X-RPC-Safe-Enabled", out var values) ||
+                response.Content.Headers.TryGetValues("X-RPC-Safe-Enabled", out values))
+            {
+                var value = values.FirstOrDefault();
+                if (bool.TryParse(value, out var safeEnabled))
+                {
+                    return safeEnabled;
+                }
+            }
+
+            return null;
         }
 
         /// <summary>
@@ -219,6 +242,18 @@ namespace RpcToolkit
                 RpcErrorCodes.ValidationError => new ValidationErrorException(error.Message, error.Data),
                 _ => new ServerErrorException(error.Message, error.Data)
             };
+        }
+
+        private sealed class RpcHttpResponse
+        {
+            public RpcHttpResponse(string content, bool? safeEnabled)
+            {
+                Content = content;
+                SafeEnabled = safeEnabled;
+            }
+
+            public string Content { get; }
+            public bool? SafeEnabled { get; }
         }
 
         /// <summary>

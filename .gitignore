@@ -62,3 +62,11 @@ Desktop.ini
 # Temporary files
 *.tmp
 *.temp
+
+# JavaScript tooling artifacts (when working near the shared JS client)
+node_modules/
+dist/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*

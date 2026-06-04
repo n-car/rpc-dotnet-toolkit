@@ -25,6 +25,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 - N/A
 
+## [1.1.1] - 2026-06-04
+
+### Added
+- `X-RPC-Safe-Enabled` request and response negotiation for .NET clients and ASP.NET Core hosted endpoints.
+
+### Changed
+- Safe Mode deserialization now normalizes prefixed values before typed conversion, improving interoperability with the shared JavaScript client.
+
+### Fixed
+- JSON-RPC envelope fields now serialize explicitly as `jsonrpc`, `method`, `params`, and `id` across serializers.
+- `netstandard2.0` serialization now uses camelCase property names, matching the JavaScript toolkit and .NET 6+ behavior.
+- The C# client now deserializes responses using the server safe-mode header when present.
+- Batch requests now work when endpoint logging is disabled.
+
 ## [1.1.0] - 2026-06-04
 
 ### Added

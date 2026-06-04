@@ -64,6 +64,7 @@ public class RpcMiddleware
 
             // Write response
             context.Response.ContentType = "application/json; charset=utf-8";
+            context.Response.Headers["X-RPC-Safe-Enabled"] = _endpoint.SafeEnabled ? "true" : "false";
             context.Response.StatusCode = StatusCodes.Status200OK;
             await context.Response.WriteAsync(response);
         }

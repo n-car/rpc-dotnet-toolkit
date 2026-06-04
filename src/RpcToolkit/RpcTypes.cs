@@ -3,6 +3,11 @@ using System.Collections.Generic;
 using System.Security.Claims;
 using System.Threading.Tasks;
 using RpcToolkit.Logging;
+#if NETSTANDARD2_0
+using Newtonsoft.Json;
+#else
+using System.Text.Json.Serialization;
+#endif
 
 namespace RpcToolkit
 {
@@ -244,15 +249,35 @@ namespace RpcToolkit
     public class RpcRequest
     {
         /// <summary>JSON-RPC protocol version (always "2.0")</summary>
+#if NETSTANDARD2_0
+        [JsonProperty("jsonrpc")]
+#else
+        [JsonPropertyName("jsonrpc")]
+#endif
         public string JsonRpc { get; set; } = "2.0";
         
         /// <summary>Name of the method to invoke</summary>
+#if NETSTANDARD2_0
+        [JsonProperty("method")]
+#else
+        [JsonPropertyName("method")]
+#endif
         public string Method { get; set; } = string.Empty;
         
         /// <summary>Method parameters (object or array)</summary>
+#if NETSTANDARD2_0
+        [JsonProperty("params")]
+#else
+        [JsonPropertyName("params")]
+#endif
         public object? Params { get; set; }
         
         /// <summary>Request identifier (null for notifications)</summary>
+#if NETSTANDARD2_0
+        [JsonProperty("id")]
+#else
+        [JsonPropertyName("id")]
+#endif
         public object? Id { get; set; }
 
         /// <summary>
@@ -285,15 +310,35 @@ namespace RpcToolkit
     public class RpcResponse
     {
         /// <summary>JSON-RPC protocol version (always "2.0")</summary>
+#if NETSTANDARD2_0
+        [JsonProperty("jsonrpc")]
+#else
+        [JsonPropertyName("jsonrpc")]
+#endif
         public string JsonRpc { get; set; } = "2.0";
         
         /// <summary>Successful result (mutually exclusive with Error)</summary>
+#if NETSTANDARD2_0
+        [JsonProperty("result")]
+#else
+        [JsonPropertyName("result")]
+#endif
         public object? Result { get; set; }
         
         /// <summary>Error information if request failed</summary>
+#if NETSTANDARD2_0
+        [JsonProperty("error")]
+#else
+        [JsonPropertyName("error")]
+#endif
         public RpcError? Error { get; set; }
         
         /// <summary>Request identifier (matches the request Id)</summary>
+#if NETSTANDARD2_0
+        [JsonProperty("id")]
+#else
+        [JsonPropertyName("id")]
+#endif
         public object? Id { get; set; }
 
         /// <summary>
@@ -308,12 +353,27 @@ namespace RpcToolkit
     public class RpcError
     {
         /// <summary>Numeric error code</summary>
+#if NETSTANDARD2_0
+        [JsonProperty("code")]
+#else
+        [JsonPropertyName("code")]
+#endif
         public int Code { get; set; }
         
         /// <summary>Human-readable error message</summary>
+#if NETSTANDARD2_0
+        [JsonProperty("message")]
+#else
+        [JsonPropertyName("message")]
+#endif
         public string Message { get; set; } = string.Empty;
         
         /// <summary>Additional error details</summary>
+#if NETSTANDARD2_0
+        [JsonProperty("data")]
+#else
+        [JsonPropertyName("data")]
+#endif
         public object? Data { get; set; }
 
         /// <summary>

@@ -118,6 +118,29 @@ namespace RpcToolkit.Tests
         }
 
         [Fact]
+        public async Task HandleRequestAsync_ProcessesBatchWhenLoggingIsDisabled()
+        {
+            // Arrange
+            var endpoint = new RpcEndpoint(options: new RpcOptions
+            {
+                EnableLogging = false
+            });
+            endpoint.AddMethod<AddParams, int>("add", (p, ctx) => p!.A + p.B);
+
+            var request = @"[
+                {""jsonrpc"":""2.0"",""method"":""add"",""params"":{""a"":7,""b"":8},""id"":1}
+            ]";
+
+            // Act
+            var response = await endpoint.HandleRequestAsync(request);
+
+            // Assert
+            Assert.Contains("\"jsonrpc\":\"2.0\"", response);
+            Assert.DoesNotContain("\"jsonRpc\"", response);
+            Assert.Contains("\"result\":15", response);
+        }
+
+        [Fact]
         public async Task HandleRequestAsync_HandlesNotification()
         {
             // Arrange

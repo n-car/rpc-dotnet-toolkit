@@ -70,6 +70,11 @@ namespace RpcToolkit
         public MiddlewareManager? GetMiddleware() => _middleware;
 
         /// <summary>
+        /// Indicates whether Safe Mode serialization is enabled for this endpoint.
+        /// </summary>
+        public bool SafeEnabled => _options.SafeEnabled;
+
+        /// <summary>
         /// Register an RPC method with optional schema and metadata
         /// </summary>
         /// <param name="methodName">Method name</param>
@@ -310,7 +315,7 @@ namespace RpcToolkit
                 StartTime = startTime
             } : null;
 
-            _rpcLogger!.Info($"Processing batch request with {requests.Count} items", new
+            _rpcLogger?.Info($"Processing batch request with {requests.Count} items", new
             {
                 BatchSize = requests.Count,
                 Parallel = _batchOptions.Parallel,
@@ -381,7 +386,7 @@ namespace RpcToolkit
                                 throw;
                             }
 
-                            _rpcLogger.Error($"Error in batch request: {request.Method}", new { RequestId = request.Id }, ex);
+                            _rpcLogger?.Error($"Error in batch request: {request.Method}", new { RequestId = request.Id }, ex);
                             return CreateErrorResponse(request.Id, new InternalErrorException());
                         }
                     });
@@ -434,7 +439,7 @@ namespace RpcToolkit
                                 throw;
                             }
 
-                            _rpcLogger.Error($"Error in batch request: {request.Method}", new { RequestId = request.Id }, ex);
+                            _rpcLogger?.Error($"Error in batch request: {request.Method}", new { RequestId = request.Id }, ex);
                             responses.Add(CreateErrorResponse(request.Id, new InternalErrorException()));
                         }
                     }
@@ -454,7 +459,7 @@ namespace RpcToolkit
                         metrics.MaxDurationMs = metrics.RequestTimings.Max(t => t.DurationMs);
                     }
 
-                    _rpcLogger.Info("Batch completed", new
+                    _rpcLogger?.Info("Batch completed", new
                     {
                         TotalRequests = metrics.TotalRequests,
                         SuccessCount = metrics.SuccessCount,
@@ -466,7 +471,7 @@ namespace RpcToolkit
             }
             catch (Exception ex)
             {
-                _rpcLogger.Error("Batch processing failed", null, ex);
+                _rpcLogger?.Error("Batch processing failed", null, ex);
                 throw;
             }
 

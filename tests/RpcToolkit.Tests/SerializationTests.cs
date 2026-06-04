@@ -57,7 +57,6 @@ namespace RpcToolkit.Tests
         [Fact]
         public void SafeMode_RoundTrip_PreservesValues()
         {
-            // Test individual values (not objects yet - objects need recursive safe mode)
             var str = "hello";
             var date = new DateTime(2025, 11, 26, 10, 30, 0, DateTimeKind.Utc);
             var big = new BigInteger(123456789);
@@ -70,6 +69,29 @@ namespace RpcToolkit.Tests
             Assert.Contains("S:hello", jsonStr);
             Assert.Contains("D:", jsonDate);
             Assert.Contains("n", jsonBig);
+        }
+
+        [Fact]
+        public void Serialize_RpcRequest_UsesJsonRpcFieldName()
+        {
+            var request = new RpcRequest("echo.string", new { Text = "hello" }, 1);
+
+            var json = SerializerFactory.Serialize(request, safeMode: true);
+
+            Assert.Contains(@"""jsonrpc"":""2.0""", json);
+            Assert.DoesNotContain(@"""jsonRpc""", json);
+            Assert.Contains(@"""method"":""echo.string""", json);
+            Assert.Contains(@"""text"":""S:hello""", json);
+        }
+
+        [Fact]
+        public void SafeMode_Deserialize_TypedDate_RemovesPrefixBeforeConversion()
+        {
+            var json = "\"D:2026-01-02T03:04:05.000Z\"";
+
+            var result = SerializerFactory.Deserialize<DateTimeOffset>(json, safeMode: true);
+
+            Assert.Equal(DateTimeOffset.Parse("2026-01-02T03:04:05.000Z"), result);
         }
 
         [Fact]

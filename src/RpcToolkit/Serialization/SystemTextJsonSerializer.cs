@@ -1,9 +1,13 @@
 #if NET6_0_OR_GREATER
 
 using System;
+using System.Collections;
+using System.Collections.Generic;
 using System.Numerics;
+using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
 
 namespace RpcToolkit.Serialization
 {
@@ -15,6 +19,7 @@ namespace RpcToolkit.Serialization
         private static readonly JsonSerializerOptions DefaultOptions = new JsonSerializerOptions
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            PropertyNameCaseInsensitive = true,
             DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
             WriteIndented = false
         };
@@ -33,31 +38,90 @@ namespace RpcToolkit.Serialization
 
         public static T? Deserialize<T>(string json, bool safeMode)
         {
-            var obj = JsonSerializer.Deserialize<T>(json, DefaultOptions);
-
-            if (safeMode && obj != null)
+            if (!safeMode)
             {
-                return (T?)RemoveSafeMode(obj);
+                return JsonSerializer.Deserialize<T>(json, DefaultOptions);
             }
 
-            return obj;
+            using var document = JsonDocument.Parse(json);
+            var normalized = RemoveSafeMode(document.RootElement);
+            var normalizedJson = JsonSerializer.Serialize(normalized, DefaultOptions);
+            return JsonSerializer.Deserialize<T>(normalizedJson, DefaultOptions);
         }
 
         public static object? Deserialize(string json, Type targetType, bool safeMode)
         {
-            var obj = JsonSerializer.Deserialize(json, targetType, DefaultOptions);
-
-            if (safeMode && obj != null)
+            if (!safeMode)
             {
-                return RemoveSafeMode(obj);
+                return JsonSerializer.Deserialize(json, targetType, DefaultOptions);
             }
 
-            return obj;
+            using var document = JsonDocument.Parse(json);
+            var normalized = RemoveSafeMode(document.RootElement);
+            var normalizedJson = JsonSerializer.Serialize(normalized, DefaultOptions);
+            return JsonSerializer.Deserialize(normalizedJson, targetType, DefaultOptions);
         }
 
         private static object? ApplySafeMode(object? value)
         {
             if (value == null) return null;
+
+            if (value is RpcRequest request)
+            {
+                var result = new Dictionary<string, object?>
+                {
+                    ["jsonrpc"] = request.JsonRpc,
+                    ["method"] = request.Method
+                };
+
+                if (request.Params != null)
+                {
+                    result["params"] = ApplySafeMode(request.Params);
+                }
+
+                if (request.Id != null)
+                {
+                    result["id"] = request.Id;
+                }
+
+                return result;
+            }
+
+            if (value is RpcResponse response)
+            {
+                var result = new Dictionary<string, object?>
+                {
+                    ["jsonrpc"] = response.JsonRpc,
+                    ["id"] = response.Id
+                };
+
+                if (response.Error != null)
+                {
+                    result["error"] = ApplySafeMode(response.Error);
+                }
+                else
+                {
+                    result["result"] = ApplySafeMode(response.Result);
+                }
+
+                return result;
+            }
+
+            if (value is RpcError error)
+            {
+                var result = new Dictionary<string, object?>
+                {
+                    ["code"] = error.Code,
+                    ["message"] = error.Message
+                };
+
+                if (error.Data != null)
+                {
+                    result["data"] = ApplySafeMode(error.Data);
+                }
+
+                return result;
+            }
 
             // Handle strings: prefix with "S:"
             if (value is string str)
@@ -93,6 +157,19 @@ namespace RpcToolkit.Serialization
                 };
             }
 
+            if (value is IDictionary dictionary)
+            {
+                var result = new Dictionary<string, object?>();
+                foreach (DictionaryEntry entry in dictionary)
+                {
+                    if (entry.Key == null)
+                        continue;
+
+                    result[entry.Key.ToString()!] = ApplySafeMode(entry.Value);
+                }
+                return result;
+            }
+
             // Handle arrays
             if (value is Array arr)
             {
@@ -100,6 +177,33 @@ namespace RpcToolkit.Serialization
                 for (int i = 0; i < arr.Length; i++)
                 {
                     result[i] = ApplySafeMode(arr.GetValue(i));
+                }
+                return result;
+            }
+
+            if (value is IEnumerable enumerable && value is not string)
+            {
+                var result = new List<object?>();
+                foreach (var item in enumerable)
+                {
+                    result.Add(ApplySafeMode(item));
+                }
+                return result;
+            }
+
+            if (IsPlainObject(value))
+            {
+                var result = new Dictionary<string, object?>();
+                foreach (var property in value.GetType().GetProperties(BindingFlags.Instance | BindingFlags.Public))
+                {
+                    if (!property.CanRead || property.GetIndexParameters().Length > 0)
+                        continue;
+
+                    var propertyValue = property.GetValue(value);
+                    if (propertyValue == null)
+                        continue;
+
+                    result[GetJsonPropertyName(property)] = ApplySafeMode(propertyValue);
                 }
                 return result;
             }
@@ -127,43 +231,57 @@ namespace RpcToolkit.Serialization
             return result;
         }
 
-        private static object? RemoveSafeMode(object? value)
+        private static object? RemoveSafeMode(JsonElement element)
         {
-            if (value == null) return null;
-
-            // Handle safe-mode strings
-            if (value is string str)
+            switch (element.ValueKind)
             {
-                if (str.StartsWith("S:"))
+                case JsonValueKind.String:
                 {
-                    return str.Substring(2);
-                }
-                if (str.StartsWith("D:"))
-                {
-                    return DateTimeOffset.Parse(str.Substring(2));
-                }
-                if (str.EndsWith("n") && BigInteger.TryParse(str.Substring(0, str.Length - 1), out var bi))
-                {
-                    return bi;
-                }
-            }
+                    var value = element.GetString();
+                    if (value == null)
+                        return null;
 
-            // Handle JsonElement
-            if (value is JsonElement element)
-            {
-                return element.ValueKind switch
-                {
-                    JsonValueKind.String => RemoveSafeMode(element.GetString()),
-                    JsonValueKind.Array => RemoveSafeModeArray(element),
-                    JsonValueKind.Object => RemoveSafeModeObject(element),
-                    _ => value
-                };
-            }
+                    if (value.StartsWith("S:", StringComparison.Ordinal))
+                    {
+                        return value.Substring(2);
+                    }
 
-            return value;
+                    if (value.StartsWith("D:", StringComparison.Ordinal))
+                    {
+                        return DateTimeOffset.Parse(value.Substring(2));
+                    }
+
+                    if (value.EndsWith("n", StringComparison.Ordinal) &&
+                        BigInteger.TryParse(value.Substring(0, value.Length - 1), out var bi))
+                    {
+                        return bi;
+                    }
+
+                    return value;
+                }
+                case JsonValueKind.Array:
+                    return RemoveSafeModeArray(element);
+                case JsonValueKind.Object:
+                    return RemoveSafeModeObject(element);
+                case JsonValueKind.Number:
+                    if (element.TryGetInt64(out var longValue))
+                        return longValue;
+                    if (element.TryGetDecimal(out var decimalValue))
+                        return decimalValue;
+                    return element.GetDouble();
+                case JsonValueKind.True:
+                    return true;
+                case JsonValueKind.False:
+                    return false;
+                case JsonValueKind.Null:
+                case JsonValueKind.Undefined:
+                    return null;
+                default:
+                    return null;
+            }
         }
 
-        private static object RemoveSafeModeArray(JsonElement element)
+        private static List<object?> RemoveSafeModeArray(JsonElement element)
         {
             var result = new List<object?>();
             foreach (var item in element.EnumerateArray())
@@ -173,7 +291,7 @@ namespace RpcToolkit.Serialization
             return result;
         }
 
-        private static object RemoveSafeModeObject(JsonElement element)
+        private static Dictionary<string, object?> RemoveSafeModeObject(JsonElement element)
         {
             var result = new Dictionary<string, object?>();
             foreach (var prop in element.EnumerateObject())
@@ -181,6 +299,18 @@ namespace RpcToolkit.Serialization
                 result[prop.Name] = RemoveSafeMode(prop.Value);
             }
             return result;
+        }
+
+        private static bool IsPlainObject(object value)
+        {
+            var type = value.GetType();
+            return type.IsClass && type != typeof(string);
+        }
+
+        private static string GetJsonPropertyName(PropertyInfo property)
+        {
+            var attribute = property.GetCustomAttribute<JsonPropertyNameAttribute>();
+            return attribute?.Name ?? JsonNamingPolicy.CamelCase.ConvertName(property.Name);
         }
     }
 }

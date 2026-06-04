@@ -66,6 +66,59 @@ namespace RpcToolkit.Tests
         }
 
         [Fact]
+        public async Task CallAsync_SendsJsonRpcEnvelopeAndSafeHeader()
+        {
+            // Arrange
+            var handler = new CapturingHandler(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(@"{""jsonrpc"":""2.0"",""result"":""S:ok"",""id"":1}")
+            });
+
+            using var httpClient = new HttpClient(handler);
+            using var client = new RpcClient(
+                "http://localhost:8080/rpc",
+                new RpcClientOptions { SafeEnabled = true },
+                httpClient: httpClient);
+
+            // Act
+            var result = await client.CallAsync<string>("echo.string", new TextParams { Text = "hello" });
+            var requestJson = await handler.Request!.Content!.ReadAsStringAsync();
+
+            // Assert
+            Assert.Equal("ok", result);
+            Assert.Contains(@"""jsonrpc"":""2.0""", requestJson);
+            Assert.DoesNotContain(@"""jsonRpc""", requestJson);
+            Assert.Contains(@"""method"":""echo.string""", requestJson);
+            Assert.Contains(@"""text"":""S:hello""", requestJson);
+            Assert.True(handler.Request.Headers.TryGetValues("X-RPC-Safe-Enabled", out var values));
+            Assert.Equal("true", values.Single());
+        }
+
+        [Fact]
+        public async Task CallAsync_UsesResponseSafeHeaderForDeserialization()
+        {
+            // Arrange
+            var response = new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(@"{""jsonrpc"":""2.0"",""result"":""S:ok"",""id"":1}")
+            };
+            response.Headers.Add("X-RPC-Safe-Enabled", "true");
+
+            var handler = new CapturingHandler(response);
+            using var httpClient = new HttpClient(handler);
+            using var client = new RpcClient(
+                "http://localhost:8080/rpc",
+                new RpcClientOptions { SafeEnabled = false },
+                httpClient: httpClient);
+
+            // Act
+            var result = await client.CallAsync<string>("echo.string", new TextParams { Text = "hello" });
+
+            // Assert
+            Assert.Equal("ok", result);
+        }
+
+        [Fact]
         public void ClearAuthToken_RemovesAuthorizationHeader()
         {
             // Arrange
@@ -120,6 +173,11 @@ namespace RpcToolkit.Tests
                 Request = request;
                 return Task.FromResult(_response);
             }
+        }
+
+        private class TextParams
+        {
+            public string Text { get; set; } = string.Empty;
         }
     }
 }

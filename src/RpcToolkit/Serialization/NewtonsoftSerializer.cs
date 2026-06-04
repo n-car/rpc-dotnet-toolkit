@@ -1,9 +1,13 @@
 #if NETSTANDARD2_0
 
 using System;
+using System.Collections;
+using System.Collections.Generic;
 using System.Numerics;
+using System.Reflection;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using Newtonsoft.Json.Serialization;
 
 namespace RpcToolkit.Serialization
 {
@@ -14,6 +18,7 @@ namespace RpcToolkit.Serialization
     {
         private static readonly JsonSerializerSettings DefaultSettings = new JsonSerializerSettings
         {
+            ContractResolver = new CamelCasePropertyNamesContractResolver(),
             NullValueHandling = NullValueHandling.Ignore,
             DateTimeZoneHandling = DateTimeZoneHandling.Utc,
             DateFormatHandling = DateFormatHandling.IsoDateFormat
@@ -33,31 +38,86 @@ namespace RpcToolkit.Serialization
 
         public static T? Deserialize<T>(string json, bool safeMode)
         {
-            var obj = JsonConvert.DeserializeObject<T>(json, DefaultSettings);
-
-            if (safeMode && obj != null)
+            if (!safeMode)
             {
-                return (T?)RemoveSafeMode(obj);
+                return JsonConvert.DeserializeObject<T>(json, DefaultSettings);
             }
 
-            return obj;
+            var normalized = RemoveSafeMode(JToken.Parse(json));
+            return normalized.ToObject<T>(JsonSerializer.Create(DefaultSettings));
         }
 
         public static object? Deserialize(string json, Type targetType, bool safeMode)
         {
-            var obj = JsonConvert.DeserializeObject(json, targetType, DefaultSettings);
-
-            if (safeMode && obj != null)
+            if (!safeMode)
             {
-                return RemoveSafeMode(obj);
+                return JsonConvert.DeserializeObject(json, targetType, DefaultSettings);
             }
 
-            return obj;
+            var normalized = RemoveSafeMode(JToken.Parse(json));
+            return normalized.ToObject(targetType, JsonSerializer.Create(DefaultSettings));
         }
 
         private static object? ApplySafeMode(object? value)
         {
             if (value == null) return null;
+
+            if (value is RpcRequest request)
+            {
+                var result = new Dictionary<string, object?>
+                {
+                    ["jsonrpc"] = request.JsonRpc,
+                    ["method"] = request.Method
+                };
+
+                if (request.Params != null)
+                {
+                    result["params"] = ApplySafeMode(request.Params);
+                }
+
+                if (request.Id != null)
+                {
+                    result["id"] = request.Id;
+                }
+
+                return result;
+            }
+
+            if (value is RpcResponse response)
+            {
+                var result = new Dictionary<string, object?>
+                {
+                    ["jsonrpc"] = response.JsonRpc,
+                    ["id"] = response.Id
+                };
+
+                if (response.Error != null)
+                {
+                    result["error"] = ApplySafeMode(response.Error);
+                }
+                else
+                {
+                    result["result"] = ApplySafeMode(response.Result);
+                }
+
+                return result;
+            }
+
+            if (value is RpcError error)
+            {
+                var result = new Dictionary<string, object?>
+                {
+                    ["code"] = error.Code,
+                    ["message"] = error.Message
+                };
+
+                if (error.Data != null)
+                {
+                    result["data"] = ApplySafeMode(error.Data);
+                }
+
+                return result;
+            }
 
             // Handle strings: prefix with "S:"
             if (value is string str)
@@ -81,6 +141,19 @@ namespace RpcToolkit.Serialization
                 return bi.ToString() + "n";
             }
 
+            if (value is IDictionary dictionary)
+            {
+                var result = new Dictionary<string, object?>();
+                foreach (DictionaryEntry entry in dictionary)
+                {
+                    if (entry.Key == null)
+                        continue;
+
+                    result[entry.Key.ToString()!] = ApplySafeMode(entry.Value);
+                }
+                return result;
+            }
+
             // Handle arrays
             if (value is Array arr)
             {
@@ -88,6 +161,16 @@ namespace RpcToolkit.Serialization
                 for (int i = 0; i < arr.Length; i++)
                 {
                     result[i] = ApplySafeMode(arr.GetValue(i));
+                }
+                return result;
+            }
+
+            if (value is IEnumerable enumerable && value is not string)
+            {
+                var result = new List<object?>();
+                foreach (var item in enumerable)
+                {
+                    result.Add(ApplySafeMode(item));
                 }
                 return result;
             }
@@ -103,53 +186,101 @@ namespace RpcToolkit.Serialization
                 return result;
             }
 
+            if (value is JArray jarr)
+            {
+                var result = new List<object?>();
+                foreach (var item in jarr)
+                {
+                    result.Add(ApplySafeMode(item.ToObject<object>()));
+                }
+                return result;
+            }
+
+            if (IsPlainObject(value))
+            {
+                var result = new Dictionary<string, object?>();
+                foreach (var property in value.GetType().GetProperties(BindingFlags.Instance | BindingFlags.Public))
+                {
+                    if (!property.CanRead || property.GetIndexParameters().Length > 0)
+                        continue;
+
+                    var propertyValue = property.GetValue(value);
+                    if (propertyValue == null)
+                        continue;
+
+                    result[GetJsonPropertyName(property)] = ApplySafeMode(propertyValue);
+                }
+                return result;
+            }
+
             return value;
         }
 
-        private static object? RemoveSafeMode(object? value)
+        private static JToken RemoveSafeMode(JToken token)
         {
-            if (value == null) return null;
-
-            // Handle safe-mode strings
-            if (value is string str)
+            if (token.Type == JTokenType.String)
             {
-                if (str.StartsWith("S:"))
+                var value = token.Value<string>();
+                if (value == null)
                 {
-                    return str.Substring(2);
+                    return JValue.CreateNull();
                 }
-                if (str.StartsWith("D:"))
+
+                if (value.StartsWith("S:", StringComparison.Ordinal))
                 {
-                    return DateTimeOffset.Parse(str.Substring(2));
+                    return new JValue(value.Substring(2));
                 }
-                if (str.EndsWith("n") && BigInteger.TryParse(str.Substring(0, str.Length - 1), out var bi))
+
+                if (value.StartsWith("D:", StringComparison.Ordinal))
                 {
-                    return bi;
+                    return new JValue(DateTimeOffset.Parse(value.Substring(2)));
                 }
+
+                if (value.EndsWith("n", StringComparison.Ordinal) &&
+                    BigInteger.TryParse(value.Substring(0, value.Length - 1), out var bi))
+                {
+                    return new JValue(bi.ToString());
+                }
+
+                return new JValue(value);
             }
 
-            // Handle arrays
-            if (value is JArray jarr)
+            if (token is JArray array)
             {
-                var result = new object?[jarr.Count];
-                for (int i = 0; i < jarr.Count; i++)
+                var result = new JArray();
+                foreach (var item in array)
                 {
-                    result[i] = RemoveSafeMode(jarr[i].ToObject<object>());
+                    result.Add(RemoveSafeMode(item));
                 }
                 return result;
             }
 
-            // Handle objects
-            if (value is JObject jobj)
+            if (token is JObject obj)
             {
                 var result = new JObject();
-                foreach (var prop in jobj.Properties())
+                foreach (var property in obj.Properties())
                 {
-                    result[prop.Name] = JToken.FromObject(RemoveSafeMode(prop.Value.ToObject<object>()) ?? new object());
+                    result[property.Name] = RemoveSafeMode(property.Value);
                 }
                 return result;
             }
 
-            return value;
+            return token.DeepClone();
+        }
+
+        private static bool IsPlainObject(object value)
+        {
+            var type = value.GetType();
+            return type.IsClass && type != typeof(string);
+        }
+
+        private static string GetJsonPropertyName(PropertyInfo property)
+        {
+            var propertyName = property.GetCustomAttribute<JsonPropertyAttribute>()?.PropertyName;
+            if (!string.IsNullOrEmpty(propertyName))
+                return propertyName!;
+
+            return char.ToLowerInvariant(property.Name[0]) + property.Name.Substring(1);
         }
     }
 }

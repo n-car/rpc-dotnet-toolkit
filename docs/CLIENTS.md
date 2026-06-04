@@ -123,6 +123,12 @@ Browser global build:
     });
 
     const status = await client.call("tray.status");
+
+    const safeClient = new RpcToolkitClient.RpcSafeClient("/rpc", {}, {
+      fetchOptions: { credentials: "same-origin" }
+    });
+
+    await safeClient.notify("tray.opened");
   })();
 </script>
 ```
@@ -131,13 +137,19 @@ Browser module build:
 
 ```html
 <script type="module">
-  import { RpcClient } from "/vendor/rpc-client/rpc-client.mjs";
+  import { RpcClient, RpcSafeClient } from "/vendor/rpc-client/rpc-client.mjs";
 
   const client = new RpcClient("/rpc", {}, {
     fetchOptions: { credentials: "same-origin" }
   });
 
   const status = await client.call("tray.status");
+
+  const safeClient = new RpcSafeClient("/rpc", {}, {
+    fetchOptions: { credentials: "same-origin" }
+  });
+
+  await safeClient.notify("tray.opened");
 </script>
 ```
 

@@ -25,6 +25,35 @@ dotnet run
 The server listens on the URLs configured by ASP.NET Core. The RPC path is `/rpc`.
 The browser client is served from `/vendor/rpc-client/rpc-client.min.js`.
 
+## Browser Client
+
+Classic browser script:
+
+```html
+<script src="/vendor/rpc-client/rpc-client.min.js"></script>
+<script>
+  const client = new RpcToolkitClient.RpcClient("/rpc");
+  const safeClient = new RpcToolkitClient.RpcSafeClient("/rpc");
+
+  client.call("system.ping").then(console.log);
+  safeClient.notify("system.ping");
+</script>
+```
+
+Module script:
+
+```html
+<script type="module">
+  import { RpcClient, RpcSafeClient } from "/vendor/rpc-client/rpc-client.mjs";
+
+  const client = new RpcClient("/rpc");
+  const safeClient = new RpcSafeClient("/rpc");
+
+  console.log(await client.call("system.ping"));
+  await safeClient.notify("system.ping");
+</script>
+```
+
 ## Ping
 
 ```bash

@@ -119,13 +119,20 @@ Then load the global browser build:
 
 ```html
 <script src="/vendor/rpc-client/rpc-client.min.js"></script>
+<script>
+  const client = new RpcToolkitClient.RpcClient("/rpc");
+  const safeClient = new RpcToolkitClient.RpcSafeClient("/rpc");
+</script>
 ```
 
 Or the module build:
 
 ```html
 <script type="module">
-  import { RpcClient } from "/vendor/rpc-client/rpc-client.mjs";
+  import { RpcClient, RpcSafeClient } from "/vendor/rpc-client/rpc-client.mjs";
+
+  const client = new RpcClient("/rpc");
+  const safeClient = new RpcSafeClient("/rpc");
 </script>
 ```
 

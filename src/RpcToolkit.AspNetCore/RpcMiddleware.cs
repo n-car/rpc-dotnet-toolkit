@@ -60,7 +60,7 @@ public class RpcMiddleware
             }
 
             // Handle RPC request
-            var response = await _endpoint.HandleRequestAsync(requestBody);
+            var response = await _endpoint.HandleRequestAsync(requestBody, CreateRpcContext(context));
 
             // Write response
             context.Response.ContentType = "application/json; charset=utf-8";
@@ -128,17 +128,18 @@ public class RpcMiddleware
         return _options.AllowedOrigins.Contains(origin) || _options.AllowedOrigins.Contains("*");
     }
 
-    private object CreateRpcContext(HttpContext httpContext)
+    private RpcRequestContext CreateRpcContext(HttpContext httpContext)
     {
-        return new
+        return new RpcRequestContext(httpContext.Request.Headers.ToDictionary(
+            h => h.Key,
+            h => h.Value.ToString()))
         {
+            Authorization = httpContext.Request.Headers["Authorization"].ToString(),
             HttpContext = httpContext,
             Request = httpContext.Request,
             Response = httpContext.Response,
             User = httpContext.User,
-            Connection = httpContext.Connection,
             RemoteIp = httpContext.Connection.RemoteIpAddress?.ToString(),
-            Headers = httpContext.Request.Headers.ToDictionary(h => h.Key, h => h.Value.ToString()),
             Query = httpContext.Request.Query.ToDictionary(q => q.Key, q => q.Value.ToString())
         };
     }

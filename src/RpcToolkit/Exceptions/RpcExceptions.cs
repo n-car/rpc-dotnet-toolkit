@@ -194,6 +194,22 @@ namespace RpcToolkit.Exceptions
     }
 
     /// <summary>
+    /// Authorization error
+    /// </summary>
+    public class AuthorizationErrorException : RpcException
+    {
+        /// <summary>
+        /// Creates a new authorization error exception
+        /// </summary>
+        /// <param name="message">Error message</param>
+        /// <param name="data">Optional additional error data</param>
+        public AuthorizationErrorException(string message = "Authorization denied", object? data = null)
+            : base(RpcErrorCodes.AuthorizationError, message, data)
+        {
+        }
+    }
+
+    /// <summary>
     /// Rate limit exceeded
     /// </summary>
     public class RateLimitExceededException : RpcException

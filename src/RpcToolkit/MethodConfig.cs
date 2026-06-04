@@ -32,6 +32,26 @@ namespace RpcToolkit
         /// Human-readable description of the method
         /// </summary>
         public string? Description { get; set; }
+
+        /// <summary>
+        /// Scopes required to invoke this method. All listed scopes are required.
+        /// </summary>
+        public string[] RequiredScopes { get; set; } = Array.Empty<string>();
+
+        /// <summary>
+        /// Roles allowed to invoke this method. A principal in any listed role is allowed.
+        /// </summary>
+        public string[] RequiredRoles { get; set; } = Array.Empty<string>();
+
+        /// <summary>
+        /// Optional synchronous authorization policy.
+        /// </summary>
+        public Func<RpcAuthorizationContext, bool>? Authorize { get; set; }
+
+        /// <summary>
+        /// Optional asynchronous authorization policy.
+        /// </summary>
+        public Func<RpcAuthorizationContext, Task<bool>>? AuthorizeAsync { get; set; }
     }
 
     /// <summary>
@@ -44,5 +64,9 @@ namespace RpcToolkit
         public object? Schema { get; set; }
         public bool ExposeSchema { get; set; }
         public string? Description { get; set; }
+        public string[] RequiredScopes { get; set; } = Array.Empty<string>();
+        public string[] RequiredRoles { get; set; } = Array.Empty<string>();
+        public Func<RpcAuthorizationContext, bool>? Authorize { get; set; }
+        public Func<RpcAuthorizationContext, Task<bool>>? AuthorizeAsync { get; set; }
     }
 }

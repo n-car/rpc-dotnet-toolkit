@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using System.Threading.Tasks;
 using Xunit;
 using RpcToolkit.Middleware;
@@ -94,6 +95,95 @@ namespace RpcToolkit.Tests
             // Act & Assert
             await Assert.ThrowsAsync<RpcToolkit.Exceptions.AuthenticationErrorException>(
                 async () => await middleware.BeforeAsync(request, null));
+        }
+
+        [Fact]
+        public async Task AuthMiddleware_AuthenticatesBearerTokenFromRpcRequestContext()
+        {
+            // Arrange
+            var middleware = new AuthMiddleware(
+                token => token == "valid" ? new { UserId = 123 } : null,
+                required: true
+            );
+
+            var request = new RpcRequest { Method = "test" };
+            var context = new RpcRequestContext
+            {
+                Authorization = "Bearer valid"
+            };
+
+            // Act
+            await middleware.BeforeAsync(request, context);
+
+            // Assert
+            Assert.NotNull(context.User);
+        }
+
+        [Fact]
+        public async Task AuthMiddleware_ReadsAuthorizationFromHeaders()
+        {
+            // Arrange
+            var middleware = new AuthMiddleware(
+                token => token == "valid" ? new { UserId = 123 } : null,
+                required: true
+            );
+
+            var request = new RpcRequest { Method = "test" };
+            var context = new RpcRequestContext(new Dictionary<string, string>
+            {
+                ["authorization"] = "Bearer valid"
+            });
+
+            // Act
+            await middleware.BeforeAsync(request, context);
+
+            // Assert
+            Assert.NotNull(context.User);
+        }
+
+        [Fact]
+        public async Task AuthMiddleware_UsesAuthenticatedContextUserWithoutToken()
+        {
+            // Arrange
+            var middleware = new AuthMiddleware(
+                token => throw new InvalidOperationException("Token authenticator should not run"),
+                required: true
+            );
+
+            var request = new RpcRequest { Method = "test" };
+            var user = new ClaimsPrincipal(new ClaimsIdentity(
+                new[] { new Claim(ClaimTypes.Name, "browser-user") },
+                "Cookie"));
+            var context = new RpcRequestContext
+            {
+                User = user
+            };
+
+            // Act
+            await middleware.BeforeAsync(request, context);
+
+            // Assert
+            Assert.Equal(user, context.User);
+        }
+
+        [Fact]
+        public async Task AuthMiddleware_RejectsUnauthenticatedPrincipalWithoutToken()
+        {
+            // Arrange
+            var middleware = new AuthMiddleware(
+                token => token == "valid" ? new { UserId = 123 } : null,
+                required: true
+            );
+
+            var request = new RpcRequest { Method = "test" };
+            var context = new RpcRequestContext
+            {
+                User = new ClaimsPrincipal(new ClaimsIdentity())
+            };
+
+            // Act & Assert
+            await Assert.ThrowsAsync<RpcToolkit.Exceptions.AuthenticationErrorException>(
+                async () => await middleware.BeforeAsync(request, context));
         }
 
         private class TestMiddleware : IMiddleware

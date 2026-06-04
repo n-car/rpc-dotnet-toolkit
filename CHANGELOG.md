@@ -8,15 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Initial project structure
-- Multi-targeting support (.NET Standard 2.0, .NET 6.0, .NET 8.0)
-- Conditional serialization (Newtonsoft.Json on .NET Standard 2.0, System.Text.Json on .NET 6+)
-- RpcRequest, RpcResponse, RpcError types
-- RpcOptions and RpcClientOptions configuration
-- SerializerFactory with automatic serializer selection
-- Safe Mode serialization with type prefixes
-- Exception hierarchy for JSON-RPC errors
-- Project plan and roadmap
+- N/A
 
 ### Changed
 - N/A
@@ -32,6 +24,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 - N/A
+
+## [1.1.0] - 2026-06-04
+
+### Added
+- Per-request RPC context via `HandleRequestAsync(jsonRequest, context)`.
+- `RpcRequestContext` for request headers, remote IP, principal, and platform-specific HTTP data.
+- Method-level authorization with `MethodConfig.RequiredScopes`, `RequiredRoles`, `Authorize`, and `AuthorizeAsync`.
+- `RpcAuthorizationContext` for custom authorization policies.
+- `AuthorizationErrorException` and JSON-RPC authorization error code `-32004`.
+- C# client auth helpers with `SetAuthToken(token, scheme)` and `ClearAuthToken()`.
+- Technical documentation split into focused guides for clients, hosting, auth, Safe Mode, middleware, and examples.
+
+### Changed
+- ASP.NET Core middleware now passes per-request context, including headers and `HttpContext.User`, into the RPC endpoint.
+- `AuthMiddleware` now supports existing authenticated principals in the context and fills `RpcRequestContext.Principal` when token auth returns a `ClaimsPrincipal`.
+- README now acts as a short entry point instead of a full technical manual.
+
+### Deprecated
+- N/A
+
+### Removed
+- N/A
+
+### Fixed
+- Browser clients no longer need to provide a separate Bearer token when the HTTP host supplies an authenticated context.
+- RPC authorization can now happen after JSON-RPC method lookup, removing the need for HTTP hosts to pre-parse method names.
+
+### Security
+- Added first-class separation between authentication and method-level authorization.
 
 ## [1.0.0] - TBD
 

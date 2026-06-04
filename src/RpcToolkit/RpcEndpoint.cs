@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Claims;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using RpcToolkit.Exceptions;
@@ -104,7 +105,11 @@ namespace RpcToolkit
                 },
                 Schema = config?.Schema,
                 ExposeSchema = config?.ExposeSchema ?? false,
-                Description = config?.Description
+                Description = config?.Description,
+                RequiredScopes = NormalizeRequirements(config?.RequiredScopes),
+                RequiredRoles = NormalizeRequirements(config?.RequiredRoles),
+                Authorize = config?.Authorize,
+                AuthorizeAsync = config?.AuthorizeAsync
             };
 
             _logger?.LogDebug("Method registered: {MethodName}", methodName);
@@ -161,7 +166,11 @@ namespace RpcToolkit
                 Handler = handler.Handler,
                 Schema = handler.Schema,
                 ExposeSchema = handler.ExposeSchema,
-                Description = handler.Description
+                Description = handler.Description,
+                RequiredScopes = NormalizeRequirements(handler.RequiredScopes),
+                RequiredRoles = NormalizeRequirements(handler.RequiredRoles),
+                Authorize = handler.Authorize,
+                AuthorizeAsync = handler.AuthorizeAsync
             };
         }
 
@@ -178,10 +187,12 @@ namespace RpcToolkit
         /// <summary>
         /// Handle a JSON-RPC request
         /// </summary>
-        public async Task<string> HandleRequestAsync(string jsonRequest)
+        public async Task<string> HandleRequestAsync(string jsonRequest, object? context = null)
         {
             try
             {
+                var effectiveContext = context ?? _context;
+
                 // Parse request
                 var isBatch = jsonRequest.TrimStart().StartsWith("[");
 
@@ -206,7 +217,7 @@ namespace RpcToolkit
                         return SerializerFactory.Serialize(CreateErrorResponse(null, error), _options.SafeEnabled);
                     }
 
-                    var responses = await HandleBatchAsync(requests);
+                    var responses = await HandleBatchAsync(requests, effectiveContext);
                     return SerializerFactory.Serialize(responses, _options.SafeEnabled);
                 }
                 else
@@ -218,7 +229,7 @@ namespace RpcToolkit
                         return SerializerFactory.Serialize(CreateErrorResponse(null, error), _options.SafeEnabled);
                     }
 
-                    var response = await HandleSingleRequestAsync(request);
+                    var response = await HandleSingleRequestAsync(request, effectiveContext);
                     
                     // Notifications return no response
                     if (request.IsNotification)
@@ -235,7 +246,7 @@ namespace RpcToolkit
             }
         }
 
-        private async Task<RpcResponse> HandleSingleRequestAsync(RpcRequest request)
+        private async Task<RpcResponse> HandleSingleRequestAsync(RpcRequest request, object? context)
         {
             try
             {
@@ -245,7 +256,7 @@ namespace RpcToolkit
                 // Execute middleware before
                 if (_middleware != null)
                 {
-                    await _middleware.ExecuteBeforeAsync(request, _context);
+                    await _middleware.ExecuteBeforeAsync(request, context);
                 }
 
                 // Find method
@@ -254,13 +265,15 @@ namespace RpcToolkit
                     throw new MethodNotFoundException(request.Method);
                 }
 
+                await AuthorizeMethodAsync(request, methodHandler, context);
+
                 // Execute method
-                var result = await methodHandler.Handler(request.Params, _context);
+                var result = await methodHandler.Handler(request.Params, context);
 
                 // Execute middleware after
                 if (_middleware != null)
                 {
-                    await _middleware.ExecuteAfterAsync(request, result, _context);
+                    await _middleware.ExecuteAfterAsync(request, result, context);
                 }
 
                 _logger?.LogDebug("Method executed successfully: {Method}", request.Method);
@@ -287,7 +300,7 @@ namespace RpcToolkit
             }
         }
 
-        private async Task<List<RpcResponse>> HandleBatchAsync(List<RpcRequest> requests)
+        private async Task<List<RpcResponse>> HandleBatchAsync(List<RpcRequest> requests, object? context)
         {
             var startTime = DateTime.UtcNow;
             var stopwatch = Stopwatch.StartNew();
@@ -323,7 +336,7 @@ namespace RpcToolkit
                         var requestStopwatch = Stopwatch.StartNew();
                         try
                         {
-                            var response = await HandleSingleRequestAsync(request);
+                            var response = await HandleSingleRequestAsync(request, context);
                             
                             if (metrics != null)
                             {
@@ -383,7 +396,7 @@ namespace RpcToolkit
                         var requestStopwatch = Stopwatch.StartNew();
                         try
                         {
-                            var response = await HandleSingleRequestAsync(request);
+                            var response = await HandleSingleRequestAsync(request, context);
                             responses.Add(response);
                             
                             if (metrics != null)
@@ -471,6 +484,157 @@ namespace RpcToolkit
             {
                 throw new InvalidRequestException("Method name is required");
             }
+        }
+
+        private async Task AuthorizeMethodAsync(RpcRequest request, MethodHandler methodHandler, object? context)
+        {
+            if (!HasAuthorizationPolicy(methodHandler))
+                return;
+
+            var principal = ExtractPrincipal(context);
+            var authorizationContext = new RpcAuthorizationContext(
+                request,
+                CreateMethodConfig(methodHandler),
+                context,
+                principal);
+
+            if (methodHandler.RequiredScopes.Length > 0)
+            {
+                EnsureAuthenticatedPrincipal(principal);
+                var scopes = GetScopes(principal!);
+
+                foreach (var requiredScope in methodHandler.RequiredScopes)
+                {
+                    if (!scopes.Contains(requiredScope))
+                    {
+                        throw new AuthorizationErrorException(
+                            $"Scope '{requiredScope}' is required to invoke method '{methodHandler.Name}'");
+                    }
+                }
+            }
+
+            if (methodHandler.RequiredRoles.Length > 0)
+            {
+                EnsureAuthenticatedPrincipal(principal);
+
+                var hasRole = methodHandler.RequiredRoles.Any(role => principal!.IsInRole(role));
+                if (!hasRole)
+                {
+                    throw new AuthorizationErrorException(
+                        $"One of the required roles is needed to invoke method '{methodHandler.Name}'");
+                }
+            }
+
+            if (methodHandler.Authorize != null && !methodHandler.Authorize(authorizationContext))
+            {
+                ThrowAuthorizationPolicyDenied(principal, methodHandler.Name);
+            }
+
+            if (methodHandler.AuthorizeAsync != null && !await methodHandler.AuthorizeAsync(authorizationContext))
+            {
+                ThrowAuthorizationPolicyDenied(principal, methodHandler.Name);
+            }
+        }
+
+        private static bool HasAuthorizationPolicy(MethodHandler methodHandler)
+        {
+            return methodHandler.RequiredScopes.Length > 0 ||
+                   methodHandler.RequiredRoles.Length > 0 ||
+                   methodHandler.Authorize != null ||
+                   methodHandler.AuthorizeAsync != null;
+        }
+
+        private static void EnsureAuthenticatedPrincipal(ClaimsPrincipal? principal)
+        {
+            if (principal?.Identity?.IsAuthenticated != true)
+                throw new AuthenticationErrorException("Authentication required");
+        }
+
+        private static void ThrowAuthorizationPolicyDenied(ClaimsPrincipal? principal, string methodName)
+        {
+            if (principal?.Identity?.IsAuthenticated != true)
+                throw new AuthenticationErrorException("Authentication required");
+
+            throw new AuthorizationErrorException($"Authorization denied for method '{methodName}'");
+        }
+
+        private static HashSet<string> GetScopes(ClaimsPrincipal principal)
+        {
+            var scopes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var claim in principal.Claims)
+            {
+                if (!IsScopeClaimType(claim.Type))
+                    continue;
+
+                foreach (var scope in claim.Value.Split(new[] { ' ', ',', ';' }, StringSplitOptions.RemoveEmptyEntries))
+                {
+                    scopes.Add(scope);
+                }
+            }
+
+            return scopes;
+        }
+
+        private static bool IsScopeClaimType(string claimType)
+        {
+            return string.Equals(claimType, "scope", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(claimType, "scp", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(claimType, "permission", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(claimType, "permissions", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(claimType, "http://schemas.microsoft.com/identity/claims/scope", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static ClaimsPrincipal? ExtractPrincipal(object? context)
+        {
+            if (context == null)
+                return null;
+
+            if (context is ClaimsPrincipal principal)
+                return principal;
+
+            if (context is RpcRequestContext rpcContext)
+                return rpcContext.Principal ?? rpcContext.User as ClaimsPrincipal;
+
+            var principalProperty = context.GetType().GetProperty("Principal");
+            var principalValue = principalProperty?.GetValue(context) as ClaimsPrincipal;
+            if (principalValue != null)
+                return principalValue;
+
+            var userProperty = context.GetType().GetProperty("User");
+            var userValue = userProperty?.GetValue(context) as ClaimsPrincipal;
+            if (userValue != null)
+                return userValue;
+
+            var httpContextProperty = context.GetType().GetProperty("HttpContext");
+            var httpContext = httpContextProperty?.GetValue(context);
+            if (httpContext != null && !ReferenceEquals(httpContext, context))
+            {
+                return ExtractPrincipal(httpContext);
+            }
+
+            return null;
+        }
+
+        private static MethodConfig CreateMethodConfig(MethodHandler handler)
+        {
+            return new MethodConfig
+            {
+                Name = handler.Name,
+                Handler = handler.Handler,
+                Schema = handler.Schema,
+                ExposeSchema = handler.ExposeSchema,
+                Description = handler.Description,
+                RequiredScopes = NormalizeRequirements(handler.RequiredScopes),
+                RequiredRoles = NormalizeRequirements(handler.RequiredRoles),
+                Authorize = handler.Authorize,
+                AuthorizeAsync = handler.AuthorizeAsync
+            };
+        }
+
+        private static string[] NormalizeRequirements(string[]? requirements)
+        {
+            return requirements ?? Array.Empty<string>();
         }
 
         private RpcResponse CreateErrorResponse(object? id, RpcException exception)

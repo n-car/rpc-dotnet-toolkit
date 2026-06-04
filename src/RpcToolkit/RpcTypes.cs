@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Security.Claims;
 using System.Threading.Tasks;
 using RpcToolkit.Logging;
 
@@ -100,6 +101,141 @@ namespace RpcToolkit
         /// Custom headers to include in requests
         /// </summary>
         public Dictionary<string, string> Headers { get; set; } = new Dictionary<string, string>();
+    }
+
+    /// <summary>
+    /// Per-request context passed to RPC middleware and method handlers.
+    /// </summary>
+    public class RpcRequestContext
+    {
+        /// <summary>
+        /// Authorization header value for the current request.
+        /// </summary>
+        public string? Authorization { get; set; }
+
+        /// <summary>
+        /// Request headers, matched case-insensitively.
+        /// </summary>
+        public Dictionary<string, string> Headers { get; set; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// Authenticated user populated by authentication middleware.
+        /// </summary>
+        public object? User { get; set; }
+
+        /// <summary>
+        /// Authenticated claims principal for authorization policies.
+        /// </summary>
+        public ClaimsPrincipal? Principal { get; set; }
+
+        /// <summary>
+        /// Optional platform-specific HTTP context.
+        /// </summary>
+        public object? HttpContext { get; set; }
+
+        /// <summary>
+        /// Optional platform-specific request object.
+        /// </summary>
+        public object? Request { get; set; }
+
+        /// <summary>
+        /// Optional platform-specific response object.
+        /// </summary>
+        public object? Response { get; set; }
+
+        /// <summary>
+        /// Remote IP address for the current request.
+        /// </summary>
+        public string? RemoteIp { get; set; }
+
+        /// <summary>
+        /// Query string values for the current request.
+        /// </summary>
+        public Dictionary<string, string> Query { get; set; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// Creates an empty request context.
+        /// </summary>
+        public RpcRequestContext()
+        {
+        }
+
+        /// <summary>
+        /// Creates a request context with the specified headers.
+        /// </summary>
+        public RpcRequestContext(IDictionary<string, string>? headers)
+        {
+            if (headers == null)
+                return;
+
+            foreach (var header in headers)
+            {
+                Headers[header.Key] = header.Value;
+            }
+
+            if (Headers.TryGetValue("Authorization", out var authorization))
+            {
+                Authorization = authorization;
+            }
+        }
+
+        /// <summary>
+        /// Get a request header by name.
+        /// </summary>
+        public string? GetHeader(string name)
+        {
+            if (string.IsNullOrEmpty(name))
+                return null;
+
+            return Headers.TryGetValue(name, out var value) ? value : null;
+        }
+    }
+
+    /// <summary>
+    /// Context passed to method-level authorization policies.
+    /// </summary>
+    public class RpcAuthorizationContext
+    {
+        /// <summary>
+        /// Current JSON-RPC request.
+        /// </summary>
+        public RpcRequest Request { get; }
+
+        /// <summary>
+        /// Registered method configuration.
+        /// </summary>
+        public MethodConfig Method { get; }
+
+        /// <summary>
+        /// Typed RPC request context, if available.
+        /// </summary>
+        public RpcRequestContext? Context { get; }
+
+        /// <summary>
+        /// Original context object passed to the endpoint.
+        /// </summary>
+        public object? RawContext { get; }
+
+        /// <summary>
+        /// Authenticated claims principal, if available.
+        /// </summary>
+        public ClaimsPrincipal? Principal { get; }
+
+        /// <summary>
+        /// Creates a new authorization context.
+        /// </summary>
+        public RpcAuthorizationContext(
+            RpcRequest request,
+            MethodConfig method,
+            object? context,
+            ClaimsPrincipal? principal)
+        {
+            Request = request ?? throw new ArgumentNullException(nameof(request));
+            Method = method ?? throw new ArgumentNullException(nameof(method));
+            RawContext = context;
+            Context = context as RpcRequestContext;
+            Principal = principal;
+        }
     }
 
     /// <summary>
@@ -225,6 +361,9 @@ namespace RpcToolkit
         
         /// <summary>Authentication required or failed (-32001)</summary>
         public const int AuthenticationError = -32001;
+
+        /// <summary>Authenticated caller is not authorized for the method (-32004)</summary>
+        public const int AuthorizationError = -32004;
         
         /// <summary>Too many requests in a given time frame (-32002)</summary>
         public const int RateLimitExceeded = -32002;

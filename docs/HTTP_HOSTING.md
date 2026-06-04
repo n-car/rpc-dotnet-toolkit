@@ -1,0 +1,102 @@
+# HTTP Hosting
+
+`RpcToolkit` does not require a specific HTTP server. The HTTP host is responsible for transport concerns:
+
+- port and IP binding;
+- HTTPS;
+- route matching, such as `/rpc` and `/health`;
+- HTTP headers;
+- route-level authentication challenges, such as Basic Auth `401`;
+- reading the request body and writing the response body.
+
+The RPC endpoint is responsible for JSON-RPC parsing, method lookup, authorization, invocation, and JSON-RPC errors.
+
+## Custom Host or HttpListener
+
+For .NET Framework 4.8 or a custom runtime host, build a context per request.
+
+```csharp
+using System.Collections.Specialized;
+using System.Linq;
+using System.Security.Claims;
+using RpcToolkit;
+
+var principal = CreatePrincipalFromRequest(request);
+
+var rpcContext = new RuntimeRpcRequestContext(request.Headers)
+{
+    RemoteIp = request.RemoteEndPoint?.Address?.ToString(),
+    IsSecureConnection = request.IsSecureConnection,
+    Principal = principal,
+    User = principal
+};
+
+var responseJson = await rpcEndpoint.HandleRequestAsync(body, rpcContext);
+
+public sealed class RuntimeRpcRequestContext : RpcRequestContext
+{
+    public RuntimeRpcRequestContext(NameValueCollection headers)
+        : base(headers.AllKeys
+            .Where(key => key != null)
+            .ToDictionary(key => key!, key => headers[key!] ?? string.Empty))
+    {
+    }
+
+    public bool IsSecureConnection { get; set; }
+}
+```
+
+Do not parse the JSON-RPC method in the HTTP layer to decide authorization. Register method policies on the RPC method instead.
+
+## ASP.NET Core
+
+Install:
+
+```bash
+dotnet add package RpcToolkit.AspNetCore
+```
+
+Register an endpoint:
+
+```csharp
+using RpcToolkit;
+using RpcToolkit.AspNetCore;
+
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddRpcEndpoint(
+    options: new RpcOptions
+    {
+        EnableBatch = true
+    },
+    configure: endpoint =>
+    {
+        endpoint.AddMethod<object, string>("system.ping", (p, ctx) => "pong");
+    });
+
+var app = builder.Build();
+
+app.UseRpc(new RpcMiddlewareOptions
+{
+    Path = "/rpc",
+    EnableCors = true,
+    AllowedOrigins = new[] { "https://app.local" }
+});
+
+app.MapGet("/health", () => Results.Ok(new { status = "healthy" }));
+
+app.Run();
+```
+
+The ASP.NET Core adapter creates an `RpcRequestContext` from `HttpContext`, including headers and `HttpContext.User`.
+
+## Route-Level 401 vs JSON-RPC Errors
+
+Use HTTP `401` when the route itself needs a transport challenge, for example browser Basic Auth.
+
+Use JSON-RPC errors after request parsing:
+
+- `AuthenticationErrorException`: no usable identity for a protected RPC method.
+- `AuthorizationErrorException`: identity exists, but lacks scope, role, or custom policy permission.
+
+For RPC clients, JSON-RPC errors are easier to handle because `RpcClient` maps them to typed exceptions.

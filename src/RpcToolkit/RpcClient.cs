@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
@@ -74,10 +75,23 @@ namespace RpcToolkit
         /// <summary>
         /// Set authentication token
         /// </summary>
-        public void SetAuthToken(string token)
+        public void SetAuthToken(string token, string scheme = "Bearer")
         {
-            _httpClient.DefaultRequestHeaders.Remove("Authorization");
-            _httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {token}");
+            if (string.IsNullOrWhiteSpace(token))
+                throw new ArgumentException("Authentication token cannot be empty", nameof(token));
+
+            if (string.IsNullOrWhiteSpace(scheme))
+                throw new ArgumentException("Authentication scheme cannot be empty", nameof(scheme));
+
+            _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(scheme, token);
+        }
+
+        /// <summary>
+        /// Clear authentication token
+        /// </summary>
+        public void ClearAuthToken()
+        {
+            _httpClient.DefaultRequestHeaders.Authorization = null;
         }
 
         /// <summary>
@@ -200,6 +214,7 @@ namespace RpcToolkit
                 RpcErrorCodes.InvalidParams => new InvalidParamsException(error.Message, error.Data),
                 RpcErrorCodes.InternalError => new InternalErrorException(error.Message, error.Data),
                 RpcErrorCodes.AuthenticationError => new AuthenticationErrorException(error.Message, error.Data),
+                RpcErrorCodes.AuthorizationError => new AuthorizationErrorException(error.Message, error.Data),
                 RpcErrorCodes.RateLimitExceeded => new RateLimitExceededException(error.Message, error.Data),
                 RpcErrorCodes.ValidationError => new ValidationErrorException(error.Message, error.Data),
                 _ => new ServerErrorException(error.Message, error.Data)

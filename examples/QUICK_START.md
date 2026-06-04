@@ -1,210 +1,173 @@
-# RPC .NET Toolkit - Quick Start Examples
+# Quick Start Examples
 
-## Basic Server Example
+Short examples for the core library. For detailed explanations, see the technical docs in `docs/`.
+
+## In-Process Endpoint
 
 ```csharp
-using System;
-using System.Threading.Tasks;
 using RpcToolkit;
 
-class Program
+var endpoint = new RpcEndpoint();
+
+endpoint.AddMethod<AddParams, int>("calculator.add", (p, ctx) =>
 {
-    static async Task Main()
-    {
-        // Create endpoint
-        var endpoint = new RpcEndpoint();
+    return p!.A + p.B;
+});
 
-        // Register methods
-        endpoint.AddMethod<AddParams, int>("add", (params, ctx) =>
-        {
-            return params.A + params.B;
-        });
+var request = @"{""jsonrpc"":""2.0"",""method"":""calculator.add"",""params"":{""a"":5,""b"":3},""id"":1}";
+var response = await endpoint.HandleRequestAsync(request);
 
-        endpoint.AddMethod<EchoParams, string>("echo", (params, ctx) =>
-        {
-            return $"Echo: {params.Message}";
-        });
+Console.WriteLine(response);
 
-        // Handle JSON-RPC request
-        var request = @"{
-            ""jsonrpc"": ""2.0"",
-            ""method"": ""add"",
-            ""params"": { ""a"": 5, ""b"": 3 },
-            ""id"": 1
-        }";
-
-        var response = await endpoint.HandleRequestAsync(request);
-        Console.WriteLine(response);
-        // Output: {"jsonrpc":"2.0","result":8,"id":1}
-    }
-}
-
-public class AddParams
+public sealed class AddParams
 {
     public int A { get; set; }
     public int B { get; set; }
 }
-
-public class EchoParams
-{
-    public string Message { get; set; }
-}
 ```
 
-## Client Example
-
-```csharp
-using System;
-using System.Threading.Tasks;
-using RpcToolkit;
-
-class Program
-{
-    static async Task Main()
-    {
-        // Create client
-        using var client = new RpcClient("http://localhost:5000/rpc");
-
-        // Single call
-        var result = await client.CallAsync<int>("add", new { a = 5, b = 3 });
-        Console.WriteLine($"Result: {result}"); // 8
-
-        // Batch request
-        var batch = await client.BatchAsync(new[]
-        {
-            new RpcRequest("add", new { a = 1, b = 2 }, "req1"),
-            new RpcRequest("add", new { a = 3, b = 4 }, "req2")
-        });
-
-        foreach (var response in batch)
-        {
-            Console.WriteLine($"ID {response.Id}: {response.Result}");
-        }
-
-        // Notification (no response)
-        await client.NotifyAsync("log", new { message = "Hello" });
-    }
-}
-```
-
-## Middleware Example
-
-```csharp
-using RpcToolkit;
-using RpcToolkit.Middleware;
-
-var endpoint = new RpcEndpoint();
-
-// Add CORS middleware
-endpoint.GetMiddleware()?.Add(new CorsMiddleware(new CorsOptions
-{
-    AllowedOrigins = new[] { "http://localhost:3000" },
-    AllowCredentials = true
-}), "before");
-
-// Add rate limiting
-endpoint.GetMiddleware()?.Add(
-    new RateLimitMiddleware(100, 60, "ip"), 
-    "before"
-);
-
-// Add authentication
-endpoint.GetMiddleware()?.Add(new AuthMiddleware(
-    token => {
-        // Validate token and return user
-        return token == "secret" ? new { UserId = 123 } : null;
-    },
-    allowedMethods: new[] { "ping", "version" },
-    required: true
-), "before");
-
-// Register methods
-endpoint.AddMethod<object, string>("ping", (p, ctx) => "pong");
-endpoint.AddMethod<object, string>("protected", (p, ctx) => "Protected data");
-```
-
-## Safe Mode Example
+## C# HTTP Client
 
 ```csharp
 using RpcToolkit;
 
-// Enable safe serialization
-var options = new RpcOptions
+using var client = new RpcClient("http://localhost:5000/rpc");
+
+var result = await client.CallAsync<int>("calculator.add", new { a = 5, b = 3 });
+Console.WriteLine(result);
+```
+
+## C# Client With Token
+
+```csharp
+using RpcToolkit;
+
+using var client = new RpcClient("https://runtime.local/rpc");
+
+client.SetAuthToken("admin-token");
+
+var modules = await client.CallAsync<object>("modules.list");
+```
+
+## Custom HTTP Host
+
+The HTTP host reads the request, builds a per-request context, then calls the endpoint.
+
+```csharp
+using System.Collections.Generic;
+using System.Security.Claims;
+using RpcToolkit;
+
+var principal = new ClaimsPrincipal(new ClaimsIdentity(new[]
 {
-    SafeEnabled = true
+    new Claim(ClaimTypes.Name, "admin"),
+    new Claim("scope", "modules.read modules.write")
+}, "ApiKey"));
+
+var headers = new Dictionary<string, string>
+{
+    ["X-Request-Id"] = "req-123"
 };
 
-var endpoint = new RpcEndpoint(null, options);
-
-// BigInt and DateTime will be serialized with prefixes
-endpoint.AddMethod<object, object>("getData", (p, ctx) => new
+var rpcContext = new RpcRequestContext(headers)
 {
-    Timestamp = DateTime.UtcNow,        // Serialized as "D:2025-11-26T..."
-    LargeNumber = 9007199254740992L     // Serialized as "9007199254740992n"
+    Principal = principal,
+    User = principal,
+    RemoteIp = "127.0.0.1"
+};
+
+var responseJson = await endpoint.HandleRequestAsync(body, rpcContext);
+```
+
+The HTTP host should not parse the JSON-RPC method to decide authorization. Register policies on methods instead.
+
+## Method Authorization
+
+```csharp
+endpoint.AddMethod<object, string>("modules.enable", (p, ctx) => "enabled", new MethodConfig
+{
+    RequiredScopes = new[] { "modules.write" }
 });
 ```
 
-## Batch Processing
+Suggested policy mapping:
+
+| Method | Required scope |
+|--------|----------------|
+| `tray.status` | `tray.status` |
+| `modules.list` | `modules.read` |
+| `modules.get` | `modules.read` |
+| `modules.enable` | `modules.write` |
+| `modules.disable` | `modules.write` |
+
+## Browser Call
+
+If the page is already served through an authenticated channel, let the browser use that channel.
+
+```javascript
+const response = await fetch("/rpc", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  credentials: "same-origin",
+  body: JSON.stringify({
+    jsonrpc: "2.0",
+    method: "tray.status",
+    params: {},
+    id: 1
+  })
+});
+
+const rpcResponse = await response.json();
+```
+
+The host should turn the existing session/cookie/Basic/API-key identity into a `ClaimsPrincipal` and put it into `RpcRequestContext`.
+
+## Batch Requests
 
 ```csharp
 var endpoint = new RpcEndpoint(null, new RpcOptions
 {
     EnableBatch = true,
-    MaxBatchSize = 100
+    BatchOptions = new RpcBatchOptions
+    {
+        MaxSize = 100,
+        Parallel = true,
+        MaxParallelism = 4
+    }
 });
 
-endpoint.AddMethod<AddParams, int>("add", (p, ctx) => p.A + p.B);
+endpoint.AddMethod<AddParams, int>("calculator.add", (p, ctx) => p!.A + p.B);
 
 var batchRequest = @"[
-    {""jsonrpc"":""2.0"",""method"":""add"",""params"":{""a"":1,""b"":2},""id"":1},
-    {""jsonrpc"":""2.0"",""method"":""add"",""params"":{""a"":3,""b"":4},""id"":2},
-    {""jsonrpc"":""2.0"",""method"":""add"",""params"":{""a"":5,""b"":6},""id"":3}
+  {""jsonrpc"":""2.0"",""method"":""calculator.add"",""params"":{""a"":1,""b"":2},""id"":1},
+  {""jsonrpc"":""2.0"",""method"":""calculator.add"",""params"":{""a"":3,""b"":4},""id"":2}
 ]";
 
 var response = await endpoint.HandleRequestAsync(batchRequest);
-// Returns array of results: [{"jsonrpc":"2.0","result":3,"id":1}, ...]
 ```
 
-## Context Example
+## Safe Mode
 
 ```csharp
-var contextData = new
-{
-    Database = dbConnection,
-    Config = configuration,
-    UserId = 123
-};
+using RpcToolkit;
 
-var endpoint = new RpcEndpoint(contextData);
+var endpoint = new RpcSafeEndpoint();
 
-endpoint.AddMethod<object, string>("getUserData", (params, context) =>
-{
-    // Access context
-    dynamic ctx = context;
-    var userId = ctx.UserId;
-    var db = ctx.Database;
-    
-    // Use context in method logic
-    return $"Data for user {userId}";
-});
+using var client = new RpcSafeClient("http://localhost:5000/rpc");
 ```
+
+Use safe endpoint and safe client together.
 
 ## Error Handling
 
 ```csharp
 using RpcToolkit.Exceptions;
 
-var endpoint = new RpcEndpoint();
-
-endpoint.AddMethod<int[], int>("divide", (params, ctx) =>
+endpoint.AddMethod<int[], int>("math.divide", (p, ctx) =>
 {
-    if (params[1] == 0)
-    {
-        throw new InvalidParamsException("Division by zero", new { denominator = 0 });
-    }
-    return params[0] / params[1];
-});
+    if (p![1] == 0)
+        throw new InvalidParamsException("Division by zero");
 
-// Invalid request returns error:
-// {"jsonrpc":"2.0","error":{"code":-32602,"message":"Division by zero","data":{"denominator":0}},"id":1}
+    return p[0] / p[1];
+});
 ```

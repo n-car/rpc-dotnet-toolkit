@@ -178,6 +178,23 @@ namespace RpcToolkit.Exceptions
     }
 
     /// <summary>
+    /// Remote JSON-RPC error with an implementation-defined code.
+    /// </summary>
+    public class RemoteRpcException : RpcException
+    {
+        /// <summary>
+        /// Creates a new remote RPC exception preserving the original JSON-RPC code.
+        /// </summary>
+        /// <param name="code">Original JSON-RPC error code</param>
+        /// <param name="message">Error message</param>
+        /// <param name="data">Optional additional error data</param>
+        public RemoteRpcException(int code, string message, object? data = null)
+            : base(code, message, data)
+        {
+        }
+    }
+
+    /// <summary>
     /// Authentication error
     /// </summary>
     public class AuthenticationErrorException : RpcException

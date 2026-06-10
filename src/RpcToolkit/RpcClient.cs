@@ -150,6 +150,11 @@ namespace RpcToolkit
             _logger?.LogDebug("Sending batch request with {Count} calls", requestList.Count);
 
             var response = await SendRequestAsync(jsonRequest);
+            if (string.IsNullOrWhiteSpace(response.Content))
+            {
+                return new List<RpcResponse>();
+            }
+
             var responseSafeEnabled = response.SafeEnabled ?? _options.SafeEnabled;
             var rpcResponses = SerializerFactory.Deserialize<List<RpcResponse>>(response.Content, responseSafeEnabled);
 
@@ -189,12 +194,6 @@ namespace RpcToolkit
                 var responseContent = await httpResponse.Content.ReadAsStringAsync();
                 var safeEnabled = ReadSafeModeHeader(httpResponse);
                 
-                // Notifications may return empty response
-                if (string.IsNullOrWhiteSpace(responseContent))
-                {
-                    return new RpcHttpResponse("{}", safeEnabled);
-                }
-
                 return new RpcHttpResponse(responseContent, safeEnabled);
             }
             catch (HttpRequestException ex)
@@ -240,7 +239,7 @@ namespace RpcToolkit
                 RpcErrorCodes.AuthorizationError => new AuthorizationErrorException(error.Message, error.Data),
                 RpcErrorCodes.RateLimitExceeded => new RateLimitExceededException(error.Message, error.Data),
                 RpcErrorCodes.ValidationError => new ValidationErrorException(error.Message, error.Data),
-                _ => new ServerErrorException(error.Message, error.Data)
+                _ => new RemoteRpcException(error.Code, error.Message, error.Data)
             };
         }
 

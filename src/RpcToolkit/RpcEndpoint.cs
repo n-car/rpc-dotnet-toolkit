@@ -197,6 +197,12 @@ namespace RpcToolkit
             try
             {
                 var effectiveContext = context ?? _context;
+                if (RequiresSafeHeader(effectiveContext))
+                {
+                    return SerializerFactory.Serialize(
+                        CreateErrorResponse(null, CreateMissingSafeHeaderException()),
+                        _options.SafeEnabled);
+                }
 
                 // Parse request
                 var isBatch = jsonRequest.TrimStart().StartsWith("[");
@@ -223,6 +229,9 @@ namespace RpcToolkit
                     }
 
                     var responses = await HandleBatchAsync(requests, effectiveContext);
+                    if (responses.Count == 0)
+                        return string.Empty;
+
                     return SerializerFactory.Serialize(responses, _options.SafeEnabled);
                 }
                 else
@@ -359,6 +368,9 @@ namespace RpcToolkit
                                 }
                             }
                             
+                            if (request.IsNotification)
+                                return null;
+
                             return response;
                         }
                         catch (Exception ex)
@@ -387,11 +399,17 @@ namespace RpcToolkit
                             }
 
                             _rpcLogger?.Error($"Error in batch request: {request.Method}", new { RequestId = request.Id }, ex);
+                            if (request.IsNotification)
+                                return null;
+
                             return CreateErrorResponse(request.Id, new InternalErrorException());
                         }
                     });
 
-                    responses = (await Task.WhenAll(tasks)).ToList();
+                    responses = (await Task.WhenAll(tasks))
+                        .Where(response => response != null)
+                        .Cast<RpcResponse>()
+                        .ToList();
                 }
                 else
                 {
@@ -402,7 +420,10 @@ namespace RpcToolkit
                         try
                         {
                             var response = await HandleSingleRequestAsync(request, context);
-                            responses.Add(response);
+                            if (!request.IsNotification)
+                            {
+                                responses.Add(response);
+                            }
                             
                             if (metrics != null)
                             {
@@ -440,7 +461,10 @@ namespace RpcToolkit
                             }
 
                             _rpcLogger?.Error($"Error in batch request: {request.Method}", new { RequestId = request.Id }, ex);
-                            responses.Add(CreateErrorResponse(request.Id, new InternalErrorException()));
+                            if (!request.IsNotification)
+                            {
+                                responses.Add(CreateErrorResponse(request.Id, new InternalErrorException()));
+                            }
                         }
                     }
                 }
@@ -476,6 +500,29 @@ namespace RpcToolkit
             }
 
             return responses;
+        }
+
+        private bool RequiresSafeHeader(object? context)
+        {
+            if (!_options.SafeEnabled || !_options.StrictMode)
+                return false;
+
+            if (context is not RpcRequestContext rpcContext)
+                return false;
+
+            return rpcContext.GetHeader("X-RPC-Safe-Enabled") == null;
+        }
+
+        private InvalidRequestException CreateMissingSafeHeaderException()
+        {
+            return new InvalidRequestException(
+                "RPC Compatibility Error: Server requires safe serialization header but client did not provide it.",
+                new
+                {
+                    serverSafeEnabled = _options.SafeEnabled,
+                    requiredHeader = "X-RPC-Safe-Enabled",
+                    strictMode = _options.StrictMode
+                });
         }
 
         private void ValidateRequest(RpcRequest request)
@@ -768,6 +815,7 @@ namespace RpcToolkit
                         validation = _options.EnableValidation,
                         middleware = _options.EnableMiddleware,
                         safeMode = _options.SafeEnabled,
+                        strictMode = _options.StrictMode,
                         methodCount = methodCount
                     };
                 },

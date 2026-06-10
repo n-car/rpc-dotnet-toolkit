@@ -22,6 +22,12 @@ namespace RpcToolkit
         public bool SafeEnabled { get; set; } = false;
 
         /// <summary>
+        /// Require Safe Mode HTTP negotiation headers when SafeEnabled is true.
+        /// Only applies when the request context exposes HTTP headers.
+        /// </summary>
+        public bool StrictMode { get; set; } = true;
+
+        /// <summary>
         /// Show warnings when BigInt/Date objects serialized without safe mode
         /// </summary>
         public bool WarnOnUnsafe { get; set; } = true;

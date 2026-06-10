@@ -95,6 +95,17 @@ namespace RpcToolkit.Tests
         }
 
         [Fact]
+        public void SafeMode_Deserialize_TypedBigInteger_RemovesSuffixBeforeConversion()
+        {
+            var json = "{\"value\":\"9007199254740993n\"}";
+
+            var result = SerializerFactory.Deserialize<BigIntegerPayload>(json, safeMode: true);
+
+            Assert.NotNull(result);
+            Assert.Equal(BigInteger.Parse("9007199254740993"), result!.Value);
+        }
+
+        [Fact]
         public void Deserialize_SimpleObject_Works()
         {
             var json = "{\"name\":\"test\",\"value\":42}";
@@ -111,6 +122,11 @@ namespace RpcToolkit.Tests
             var result = SerializerFactory.Deserialize<string>(json, safeMode: true);
             
             Assert.Equal("hello", result);
+        }
+
+        private class BigIntegerPayload
+        {
+            public BigInteger Value { get; set; }
         }
     }
 }

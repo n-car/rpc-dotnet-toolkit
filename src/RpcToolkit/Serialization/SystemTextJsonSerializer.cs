@@ -3,6 +3,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Numerics;
 using System.Reflection;
 using System.Text.Json;
@@ -21,7 +22,8 @@ namespace RpcToolkit.Serialization
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
             PropertyNameCaseInsensitive = true,
             DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
-            WriteIndented = false
+            WriteIndented = false,
+            Converters = { new BigIntegerJsonConverter() }
         };
 
         public static string Serialize(object? value, bool safeMode)
@@ -311,6 +313,41 @@ namespace RpcToolkit.Serialization
         {
             var attribute = property.GetCustomAttribute<JsonPropertyNameAttribute>();
             return attribute?.Name ?? JsonNamingPolicy.CamelCase.ConvertName(property.Name);
+        }
+
+        private sealed class BigIntegerJsonConverter : JsonConverter<BigInteger>
+        {
+            public override BigInteger Read(
+                ref Utf8JsonReader reader,
+                Type typeToConvert,
+                JsonSerializerOptions options)
+            {
+                if (reader.TokenType == JsonTokenType.String)
+                {
+                    var value = reader.GetString() ?? "0";
+                    if (value.EndsWith("n", StringComparison.Ordinal))
+                    {
+                        value = value.Substring(0, value.Length - 1);
+                    }
+                    return BigInteger.Parse(value, CultureInfo.InvariantCulture);
+                }
+
+                if (reader.TokenType == JsonTokenType.Number &&
+                    reader.TryGetInt64(out var longValue))
+                {
+                    return new BigInteger(longValue);
+                }
+
+                throw new JsonException("Expected JSON string or integer number for BigInteger.");
+            }
+
+            public override void Write(
+                Utf8JsonWriter writer,
+                BigInteger value,
+                JsonSerializerOptions options)
+            {
+                writer.WriteStringValue(value.ToString(CultureInfo.InvariantCulture));
+            }
         }
     }
 }

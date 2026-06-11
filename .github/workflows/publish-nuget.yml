@@ -55,3 +55,34 @@ jobs:
 
       - name: Publish packages
         run: dotnet nuget push "artifacts/nuget/*.nupkg" --source https://api.nuget.org/v3/index.json --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" --skip-duplicate
+
+      - name: List packages on NuGet
+        run: |
+          python - <<'PY' > package-list.tsv
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          import zipfile
+
+          for package_path in sorted(Path("artifacts/nuget").glob("*.nupkg")):
+              with zipfile.ZipFile(package_path) as package:
+                  nuspec_path = next(name for name in package.namelist() if name.endswith(".nuspec"))
+                  root = ET.fromstring(package.read(nuspec_path))
+                  namespace = {}
+                  if root.tag.startswith("{"):
+                      namespace["n"] = root.tag.split("}", 1)[0][1:]
+                      metadata = root.find("n:metadata", namespace)
+                      package_id = metadata.find("n:id", namespace).text
+                      version = metadata.find("n:version", namespace).text
+                  else:
+                      metadata = root.find("metadata")
+                      package_id = metadata.find("id").text
+                      version = metadata.find("version").text
+                  print(f"{package_id}\t{version}")
+          PY
+
+          while IFS=$'\t' read -r package_id version; do
+            echo "Listing ${package_id} ${version}"
+            curl --fail-with-body --request POST \
+              --header "X-NuGet-ApiKey: ${{ steps.login.outputs.NUGET_API_KEY }}" \
+              "https://www.nuget.org/api/v2/package/${package_id}/${version}"
+          done < package-list.tsv

@@ -4,7 +4,7 @@ JSON-RPC 2.0 toolkit for .NET applications. It provides a server endpoint, typed
 
 ## Packages
 
-After publication, install the core package from NuGet:
+Install the core package from NuGet:
 
 ```bash
 dotnet add package RpcToolkit

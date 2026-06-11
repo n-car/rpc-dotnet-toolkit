@@ -6,10 +6,10 @@
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
     <PackageId>RpcToolkit.AspNetCore</PackageId>
-    <Version>1.1.4</Version>
+    <Version>1.1.5</Version>
     <Authors>Nicola Carpanese</Authors>
     <Company>n-car</Company>
-    <Description>ASP.NET Core integration for RPC Toolkit with middleware, dependency injection, endpoint routing, and embedded browser client assets.</Description>
+    <Description>ASP.NET Core integration for RPC Toolkit JSON-RPC endpoints with middleware, dependency injection, endpoint routing, and embedded browser client assets.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/n-car/rpc-dotnet-toolkit</PackageProjectUrl>
     <RepositoryUrl>https://github.com/n-car/rpc-dotnet-toolkit</RepositoryUrl>

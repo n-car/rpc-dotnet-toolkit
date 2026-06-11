@@ -8,15 +8,15 @@
     
     <!-- Package Information -->
     <PackageId>RpcToolkit</PackageId>
-    <Version>1.1.1</Version>
+    <Version>1.1.4</Version>
     <Authors>Nicola Carpanese</Authors>
     <Company>n-car</Company>
-    <Description>Enterprise-ready JSON-RPC 2.0 toolkit for .NET with multi-targeting, Safe Mode serialization, middleware system, and cross-platform compatibility</Description>
+    <Description>.NET JSON-RPC 2.0 client/server toolkit with multi-targeting, Safe Mode serialization, middleware, schema validation, batch support, and method authorization.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/n-car/rpc-dotnet-toolkit</PackageProjectUrl>
     <RepositoryUrl>https://github.com/n-car/rpc-dotnet-toolkit</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
-    <PackageTags>json-rpc;jsonrpc;rpc;server;client;middleware;validation;dotnet;netstandard;cross-platform</PackageTags>
+    <PackageTags>json-rpc;jsonrpc;rpc;server;client;middleware;validation;dotnet;netstandard;safe-mode;batch;introspection</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     
     <!-- Build Options -->

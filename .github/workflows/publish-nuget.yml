@@ -84,5 +84,6 @@ jobs:
             echo "Listing ${package_id} ${version}"
             curl --fail-with-body --request POST \
               --header "X-NuGet-ApiKey: ${{ steps.login.outputs.NUGET_API_KEY }}" \
+              --data-binary "" \
               "https://www.nuget.org/api/v2/package/${package_id}/${version}"
           done < package-list.tsv

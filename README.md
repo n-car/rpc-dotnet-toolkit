@@ -1,5 +1,12 @@
 # RPC .NET Toolkit
 
+[![CI](https://github.com/n-car/rpc-dotnet-toolkit/actions/workflows/ci.yml/badge.svg)](https://github.com/n-car/rpc-dotnet-toolkit/actions/workflows/ci.yml)
+[![NuGet RpcToolkit](https://img.shields.io/nuget/v/RpcToolkit.svg)](https://www.nuget.org/packages/RpcToolkit)
+[![NuGet RpcToolkit.AspNetCore](https://img.shields.io/nuget/v/RpcToolkit.AspNetCore.svg)](https://www.nuget.org/packages/RpcToolkit.AspNetCore)
+[![NuGet downloads](https://img.shields.io/nuget/dt/RpcToolkit.svg)](https://www.nuget.org/packages/RpcToolkit)
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Status](https://img.shields.io/badge/status-stable-green.svg)](https://github.com/n-car/rpc-dotnet-toolkit/releases)
+
 JSON-RPC 2.0 toolkit for .NET applications. It provides a server endpoint, typed C# client, batch requests, Safe Mode serialization, middleware, and method-level authorization.
 
 ## Packages

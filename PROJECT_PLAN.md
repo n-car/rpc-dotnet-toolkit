@@ -1,6 +1,6 @@
 # RPC .NET Toolkit - Project Plan
 
-Status updated: 2026-06-04
+Status updated: 2026-07-30
 
 This document is the active project status and roadmap. Older phase checklists were replaced because the implementation has moved beyond the original bootstrap plan.
 
@@ -8,7 +8,7 @@ This document is the active project status and roadmap. Older phase checklists w
 
 - `RpcToolkit`: `1.1.1`
 - `RpcToolkit.AspNetCore`: `1.1.3-beta.1`
-- Shared browser/Node client: `rpc-toolkit-js-client` `1.1.0`
+- Shared browser/Node client: `rpc-toolkit-js-client` `1.1.3`
 - Express adapter compatibility target: `rpc-express-toolkit` `4.3.1`
 
 ## Current Architecture

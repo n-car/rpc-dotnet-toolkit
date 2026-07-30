@@ -6,10 +6,10 @@ This document is the active project status and roadmap. Older phase checklists w
 
 ## Current Releases
 
-- `RpcToolkit`: `1.1.1`
-- `RpcToolkit.AspNetCore`: `1.1.3-beta.1`
+- `RpcToolkit`: `1.1.5`
+- `RpcToolkit.AspNetCore`: `1.1.6`
 - Shared browser/Node client: `rpc-toolkit-js-client` `1.1.3`
-- Express adapter compatibility target: `rpc-express-toolkit` `4.3.1`
+- Express adapter compatibility target: `rpc-express-toolkit` `4.4.2`
 
 ## Current Architecture
 
@@ -77,10 +77,7 @@ Also verified manually:
 
 ### Package and Release
 
-- Publish workflow is not automated end-to-end.
-- NuGet publishing is not wired to tags/releases.
-- Package artifact smoke tests should be added before public publishing.
-- `RpcToolkit.AspNetCore` is still beta-versioned while the core package is stable.
+- Add package artifact installation smoke tests to CI before NuGet publishing.
 
 ### Examples
 

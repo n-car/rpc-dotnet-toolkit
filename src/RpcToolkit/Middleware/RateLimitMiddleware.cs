@@ -1,5 +1,6 @@
 using System;
-using System.Collections.Concurrent;
+using System.Security.Claims;
+using System.Security.Principal;
 using System.Threading.Tasks;
 using RpcToolkit.Exceptions;
 
@@ -13,7 +14,7 @@ namespace RpcToolkit.Middleware
         private readonly int _maxRequests;
         private readonly TimeSpan _window;
         private readonly string _keySelector;
-        private readonly ConcurrentDictionary<string, RateLimitEntry> _requests = new();
+        private readonly IRateLimitStore _store;
 
         /// <summary>
         /// Create rate limiter
@@ -21,7 +22,12 @@ namespace RpcToolkit.Middleware
         /// <param name="maxRequests">Maximum requests per window</param>
         /// <param name="windowSeconds">Time window in seconds</param>
         /// <param name="keySelector">How to identify clients: "ip", "user", "global"</param>
-        public RateLimitMiddleware(int maxRequests, int windowSeconds, string keySelector = "ip")
+        /// <param name="store">Optional shared store. Defaults to in-process memory.</param>
+        public RateLimitMiddleware(
+            int maxRequests,
+            int windowSeconds,
+            string keySelector = "ip",
+            IRateLimitStore? store = null)
         {
             if (maxRequests <= 0)
                 throw new ArgumentException("Max requests must be positive", nameof(maxRequests));
@@ -31,6 +37,7 @@ namespace RpcToolkit.Middleware
             _maxRequests = maxRequests;
             _window = TimeSpan.FromSeconds(windowSeconds);
             _keySelector = keySelector.ToLowerInvariant();
+            _store = store ?? new MemoryRateLimitStore();
         }
 
         /// <summary>
@@ -39,30 +46,17 @@ namespace RpcToolkit.Middleware
         /// <param name="request">The RPC request</param>
         /// <param name="context">Request context used for rate limit key extraction</param>
         /// <exception cref="RateLimitExceededException">Thrown when rate limit is exceeded</exception>
-        public Task BeforeAsync(RpcRequest request, object? context)
+        public async Task BeforeAsync(RpcRequest request, object? context)
         {
             var key = GetKey(context);
             var now = DateTime.UtcNow;
+            var requestCount = await _store.IncrementAsync(key, _window, now);
 
-            var entry = _requests.GetOrAdd(key, _ => new RateLimitEntry());
-
-            lock (entry)
+            if (requestCount > _maxRequests)
             {
-                // Clean old requests
-                entry.Requests.RemoveAll(t => now - t > _window);
-
-                // Check limit
-                if (entry.Requests.Count >= _maxRequests)
-                {
-                    throw new RateLimitExceededException(
-                        $"Rate limit exceeded: {_maxRequests} requests per {_window.TotalSeconds}s");
-                }
-
-                // Add current request
-                entry.Requests.Add(now);
+                throw new RateLimitExceededException(
+                    $"Rate limit exceeded: {_maxRequests} requests per {_window.TotalSeconds}s");
             }
-
-            return Task.CompletedTask;
         }
 
         /// <summary>
@@ -89,20 +83,40 @@ namespace RpcToolkit.Middleware
 
         private string GetClientIp(object? context)
         {
-            // In real implementation, extract from HttpContext
-            // For now, use a placeholder
-            return context?.GetType().GetProperty("ClientIp")?.GetValue(context)?.ToString() ?? "unknown";
+            if (context is RpcRequestContext rpcContext)
+                return rpcContext.RemoteIp ?? "unknown";
+
+            return GetPropertyValue(context, "RemoteIp")
+                ?? GetPropertyValue(context, "ClientIp")
+                ?? "unknown";
         }
 
         private string GetUserId(object? context)
         {
-            // In real implementation, extract authenticated user
-            return context?.GetType().GetProperty("UserId")?.GetValue(context)?.ToString() ?? "anonymous";
+            if (context is RpcRequestContext rpcContext)
+                return GetIdentityKey(rpcContext.Principal ?? rpcContext.User) ?? "anonymous";
+
+            var user = context?.GetType().GetProperty("User")?.GetValue(context);
+            return GetPropertyValue(context, "UserId")
+                ?? GetIdentityKey(user)
+                ?? "anonymous";
         }
 
-        private class RateLimitEntry
+        private static string? GetIdentityKey(object? user)
         {
-            public System.Collections.Generic.List<DateTime> Requests { get; } = new();
+            if (user is ClaimsPrincipal claimsPrincipal)
+                return claimsPrincipal.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                    ?? claimsPrincipal.Identity?.Name;
+
+            if (user is IPrincipal principal)
+                return principal.Identity?.Name;
+
+            return GetPropertyValue(user, "UserId")
+                ?? GetPropertyValue(user, "Id")
+                ?? user?.ToString();
         }
+
+        private static string? GetPropertyValue(object? value, string propertyName) =>
+            value?.GetType().GetProperty(propertyName)?.GetValue(value)?.ToString();
     }
 }

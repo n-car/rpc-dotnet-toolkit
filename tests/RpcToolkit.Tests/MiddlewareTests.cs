@@ -72,6 +72,34 @@ namespace RpcToolkit.Tests
         }
 
         [Fact]
+        public async Task RateLimitMiddleware_UsesRemoteIpFromRpcRequestContext()
+        {
+            var store = new CapturingRateLimitStore();
+            var middleware = new RateLimitMiddleware(10, 60, "ip", store);
+            var request = new RpcRequest { Method = "test" };
+            var context = new RpcRequestContext { RemoteIp = "192.0.2.10" };
+
+            await middleware.BeforeAsync(request, context);
+
+            Assert.Equal("192.0.2.10", store.LastKey);
+        }
+
+        [Fact]
+        public async Task RateLimitMiddleware_UsesAuthenticatedPrincipalIdentifier()
+        {
+            var store = new CapturingRateLimitStore();
+            var middleware = new RateLimitMiddleware(10, 60, "user", store);
+            var principal = new ClaimsPrincipal(new ClaimsIdentity(
+                new[] { new Claim(ClaimTypes.NameIdentifier, "user-42") },
+                "Bearer"));
+            var context = new RpcRequestContext { Principal = principal };
+
+            await middleware.BeforeAsync(new RpcRequest { Method = "test" }, context);
+
+            Assert.Equal("user-42", store.LastKey);
+        }
+
+        [Fact]
         public void CorsMiddleware_Instantiates()
         {
             // Arrange & Act
@@ -142,6 +170,36 @@ namespace RpcToolkit.Tests
         }
 
         [Fact]
+        public async Task AuthMiddleware_CanRequireBearerScheme()
+        {
+            var middleware = new AuthMiddleware(
+                token => new { UserId = token },
+                required: true,
+                requireBearerScheme: true);
+            var context = new RpcRequestContext { Authorization = "raw-token" };
+
+            await Assert.ThrowsAsync<RpcToolkit.Exceptions.AuthenticationErrorException>(
+                async () => await middleware.BeforeAsync(
+                    new RpcRequest { Method = "test" },
+                    context));
+        }
+
+        [Fact]
+        public async Task AuthMiddleware_DoesNotReadTokenFromQueryString()
+        {
+            var middleware = new AuthMiddleware(
+                token => token == "valid" ? new { UserId = 123 } : null,
+                required: true);
+            var context = new RpcRequestContext();
+            context.Query["token"] = "valid";
+
+            await Assert.ThrowsAsync<RpcToolkit.Exceptions.AuthenticationErrorException>(
+                async () => await middleware.BeforeAsync(
+                    new RpcRequest { Method = "test" },
+                    context));
+        }
+
+        [Fact]
         public async Task AuthMiddleware_UsesAuthenticatedContextUserWithoutToken()
         {
             // Arrange
@@ -201,6 +259,17 @@ namespace RpcToolkit.Tests
             {
                 AfterCalled = true;
                 return Task.CompletedTask;
+            }
+        }
+
+        private sealed class CapturingRateLimitStore : IRateLimitStore
+        {
+            public string? LastKey { get; private set; }
+
+            public Task<int> IncrementAsync(string key, TimeSpan window, DateTime now)
+            {
+                LastKey = key;
+                return Task.FromResult(1);
             }
         }
     }

@@ -29,6 +29,13 @@ public class RpcMiddleware
             return;
         }
 
+        if (_options.EnableCors && context.Request.Method == "OPTIONS")
+        {
+            SetCorsHeaders(context);
+            context.Response.StatusCode = StatusCodes.Status204NoContent;
+            return;
+        }
+
         // Only allow POST requests
         if (context.Request.Method != "POST")
         {
@@ -41,13 +48,6 @@ public class RpcMiddleware
         if (_options.EnableCors)
         {
             SetCorsHeaders(context);
-            
-            // Handle preflight request
-            if (context.Request.Method == "OPTIONS")
-            {
-                context.Response.StatusCode = StatusCodes.Status204NoContent;
-                return;
-            }
         }
 
         try
@@ -90,6 +90,11 @@ public class RpcMiddleware
         if (_options.Path.HasValue && !context.Request.Path.StartsWithSegments(_options.Path.Value))
         {
             return false;
+        }
+
+        if (context.Request.Method == "OPTIONS")
+        {
+            return _options.EnableCors;
         }
 
         // Check content type for POST requests

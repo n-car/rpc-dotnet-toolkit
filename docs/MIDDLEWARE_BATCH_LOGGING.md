@@ -24,6 +24,14 @@ Recommended order:
 
 Method-level authorization via `MethodConfig.RequiredScopes` runs after method lookup and before handler invocation.
 
+`RateLimitMiddleware` uses `MemoryRateLimitStore` by default. That store is local
+to one process. Multi-process or multi-instance deployments should implement
+`IRateLimitStore.IncrementAsync` with an atomic shared backend and pass it as the
+fourth constructor argument; the core does not require MySQL or Redis.
+
+`AuthMiddleware` reads `Authorization`, never the query string. Set
+`requireBearerScheme: true` to reject legacy raw header values.
+
 ## Batch Options
 
 ```csharp
@@ -73,3 +81,7 @@ app.UseRpc(new RpcMiddlewareOptions
 ```
 
 For custom HTTP hosts, set CORS headers in the host layer.
+
+Always provide explicit origins in production. The compatibility defaults still
+enable wildcard CORS; applications should set `EnableCors = false` when browser
+access is unnecessary.

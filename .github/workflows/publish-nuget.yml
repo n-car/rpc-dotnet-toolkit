@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       ref:
-        description: 'Git ref to publish, for example v1.1.5'
+        description: 'Git ref to publish, for example v1.2.0'
         required: true
-        default: 'v1.1.5'
+        default: 'v1.2.0'
 
 permissions:
   contents: read

@@ -22,6 +22,11 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\RpcToolkit\RpcToolkit.csproj" />
+    <ProjectReference Include="..\..\src\RpcToolkit.AspNetCore\RpcToolkit.AspNetCore.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
 </Project>

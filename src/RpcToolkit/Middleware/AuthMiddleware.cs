@@ -17,6 +17,7 @@ namespace RpcToolkit.Middleware
         private readonly Func<string, Task<object?>> _authenticator;
         private readonly string[] _allowedMethods;
         private readonly bool _required;
+        private readonly bool _requireBearerScheme;
 
         /// <summary>
         /// Create authentication middleware
@@ -24,14 +25,17 @@ namespace RpcToolkit.Middleware
         /// <param name="authenticator">Function to validate token and return user object</param>
         /// <param name="allowedMethods">Methods that don't require auth (whitelist)</param>
         /// <param name="required">Whether auth is required for non-whitelisted methods</param>
+        /// <param name="requireBearerScheme">Reject Authorization values that do not use Bearer.</param>
         public AuthMiddleware(
             Func<string, Task<object?>> authenticator,
             string[]? allowedMethods = null,
-            bool required = true)
+            bool required = true,
+            bool requireBearerScheme = false)
         {
             _authenticator = authenticator ?? throw new ArgumentNullException(nameof(authenticator));
             _allowedMethods = allowedMethods ?? Array.Empty<string>();
             _required = required;
+            _requireBearerScheme = requireBearerScheme;
         }
 
         /// <summary>
@@ -40,8 +44,13 @@ namespace RpcToolkit.Middleware
         public AuthMiddleware(
             Func<string, object?> authenticator,
             string[]? allowedMethods = null,
-            bool required = true)
-            : this(token => Task.FromResult(authenticator(token)), allowedMethods, required)
+            bool required = true,
+            bool requireBearerScheme = false)
+            : this(
+                token => Task.FromResult(authenticator(token)),
+                allowedMethods,
+                required,
+                requireBearerScheme)
         {
         }
 
@@ -113,6 +122,12 @@ namespace RpcToolkit.Middleware
             if (authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
             {
                 return authHeader.Substring(7);
+            }
+
+            if (_requireBearerScheme)
+            {
+                throw new AuthenticationErrorException(
+                    "Authorization header must use the Bearer scheme");
             }
 
             return authHeader;

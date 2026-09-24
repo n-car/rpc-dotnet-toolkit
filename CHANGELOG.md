@@ -7,8 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-09-24
+
 ### Added
-- N/A
+- Added the pluggable `IRateLimitStore` contract and `MemoryRateLimitStore`.
+- Added optional strict Bearer-scheme enforcement to `AuthMiddleware`.
 
 ### Changed
 - N/A
@@ -20,10 +23,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - N/A
 
 ### Fixed
-- N/A
+- Corrected rate-limit keys for `RpcRequestContext.RemoteIp`, `User`, and `Principal`.
+- Made the ASP.NET Core adapter handle CORS preflight requests on the RPC path.
 
 ### Security
-- N/A
+- Added coverage ensuring authentication tokens are not read from query strings.
 
 ## [1.1.6] - 2026-07-30
 

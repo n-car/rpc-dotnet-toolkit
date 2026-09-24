@@ -67,7 +67,8 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRpcEndpoint(
     options: new RpcOptions
     {
-        EnableBatch = true
+        EnableBatch = false,
+        EnableIntrospection = false
     },
     configure: endpoint =>
     {
@@ -91,6 +92,7 @@ app.Run();
 ```
 
 The ASP.NET Core adapter creates an `RpcRequestContext` from `HttpContext`, including headers and `HttpContext.User`.
+It also handles CORS `OPTIONS` preflight requests on the configured RPC path.
 
 ## Browser Client Assets
 

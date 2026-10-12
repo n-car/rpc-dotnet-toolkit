@@ -20,6 +20,7 @@ namespace RpcToolkit.Serialization
         {
             ContractResolver = new CamelCasePropertyNamesContractResolver(),
             NullValueHandling = NullValueHandling.Ignore,
+            DateParseHandling = DateParseHandling.None,
             DateTimeZoneHandling = DateTimeZoneHandling.Utc,
             DateFormatHandling = DateFormatHandling.IsoDateFormat
         };
@@ -28,10 +29,7 @@ namespace RpcToolkit.Serialization
         {
             if (value == null) return "null";
 
-            if (safeMode)
-            {
-                value = ApplySafeMode(value);
-            }
+            value = RpcWireFormat.Prepare(value, item => safeMode ? ApplySafeMode(item) : item);
 
             return JsonConvert.SerializeObject(value, DefaultSettings);
         }
@@ -43,7 +41,7 @@ namespace RpcToolkit.Serialization
                 return JsonConvert.DeserializeObject<T>(json, DefaultSettings);
             }
 
-            var normalized = RemoveSafeMode(JToken.Parse(json));
+            var normalized = RemoveSafeModeForType(ParseToken(json), typeof(T));
             return normalized.ToObject<T>(JsonSerializer.Create(DefaultSettings));
         }
 
@@ -54,7 +52,7 @@ namespace RpcToolkit.Serialization
                 return JsonConvert.DeserializeObject(json, targetType, DefaultSettings);
             }
 
-            var normalized = RemoveSafeMode(JToken.Parse(json));
+            var normalized = RemoveSafeModeForType(ParseToken(json), targetType);
             return normalized.ToObject(targetType, JsonSerializer.Create(DefaultSettings));
         }
 
@@ -75,7 +73,7 @@ namespace RpcToolkit.Serialization
                     result["params"] = ApplySafeMode(request.Params);
                 }
 
-                if (request.Id != null)
+                if (!request.IsNotification)
                 {
                     result["id"] = request.Id;
                 }
@@ -141,6 +139,25 @@ namespace RpcToolkit.Serialization
                 return bi.ToString() + "n";
             }
 
+            if (value is JObject jobj)
+            {
+                var result = new Dictionary<string, object?>();
+                foreach (var property in jobj.Properties())
+                    result[property.Name] = ApplySafeMode(property.Value);
+                return result;
+            }
+
+            if (value is JArray jarr)
+            {
+                var result = new List<object?>();
+                foreach (var item in jarr)
+                    result.Add(ApplySafeMode(item));
+                return result;
+            }
+
+            if (value is JValue jvalue)
+                return ApplySafeMode(jvalue.Value);
+
             if (value is IDictionary dictionary)
             {
                 var result = new Dictionary<string, object?>();
@@ -175,27 +192,6 @@ namespace RpcToolkit.Serialization
                 return result;
             }
 
-            // Handle JObject (nested objects)
-            if (value is JObject jobj)
-            {
-                var result = new JObject();
-                foreach (var prop in jobj.Properties())
-                {
-                    result[prop.Name] = JToken.FromObject(ApplySafeMode(prop.Value.ToObject<object>()) ?? new object());
-                }
-                return result;
-            }
-
-            if (value is JArray jarr)
-            {
-                var result = new List<object?>();
-                foreach (var item in jarr)
-                {
-                    result.Add(ApplySafeMode(item.ToObject<object>()));
-                }
-                return result;
-            }
-
             if (IsPlainObject(value))
             {
                 var result = new Dictionary<string, object?>();
@@ -214,6 +210,66 @@ namespace RpcToolkit.Serialization
             }
 
             return value;
+        }
+
+        internal static JToken ParseToken(string json)
+        {
+            // Newtonsoft accepts NaN/Infinity literals, unlike JSON. Reject their unquoted
+            // spellings, but leave numeric overflow (e.g. 1e999) to envelope validation.
+            var inString = false;
+            for (var i = 0; i < json.Length; i++)
+            {
+                if (inString && json[i] == '\\')
+                    i++;
+                else if (json[i] == '"')
+                    inString = !inString;
+                else if (!inString && (json[i] == 'N' || json[i] == 'I'))
+                    throw new JsonReaderException("Non-finite number literals are not valid JSON.");
+            }
+
+            using var reader = new JsonTextReader(new System.IO.StringReader(json))
+            {
+                DateParseHandling = DateParseHandling.None
+            };
+            var token = JToken.ReadFrom(reader);
+            if (reader.Read())
+                throw new JsonReaderException("Additional content after JSON value.");
+            return token;
+        }
+
+        private static JToken RemoveSafeModeForType(JToken token, Type targetType)
+        {
+            if (token is JArray array && targetType != typeof(string))
+            {
+                var itemType = targetType.IsArray ? targetType.GetElementType() :
+                    targetType.IsGenericType ? targetType.GetGenericArguments()[0] : null;
+                if (itemType == typeof(RpcRequest) || itemType == typeof(RpcResponse))
+                {
+                    var items = new JArray();
+                    foreach (var item in array)
+                        items.Add(RemoveSafeModeForType(item, itemType));
+                    return items;
+                }
+            }
+
+            if (token is JObject obj &&
+                (targetType == typeof(RpcRequest) || targetType == typeof(RpcResponse) || targetType == typeof(RpcError)))
+            {
+                var result = new JObject();
+                foreach (var property in obj.Properties())
+                {
+                    var isPayload = (targetType == typeof(RpcRequest) && property.Name == "params") ||
+                        (targetType == typeof(RpcResponse) && property.Name == "result") ||
+                        (targetType == typeof(RpcError) && property.Name == "data");
+                    result[property.Name] = isPayload ? RemoveSafeMode(property.Value) :
+                        targetType == typeof(RpcResponse) && property.Name == "error"
+                            ? RemoveSafeModeForType(property.Value, typeof(RpcError))
+                            : property.Value.DeepClone();
+                }
+                return result;
+            }
+
+            return RemoveSafeMode(token);
         }
 
         private static JToken RemoveSafeMode(JToken token)

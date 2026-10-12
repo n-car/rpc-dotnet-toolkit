@@ -63,7 +63,8 @@ namespace RpcToolkit
         public bool EnableValidation { get; set; } = true;
 
         /// <summary>
-        /// Sanitize error messages in production
+        /// Sanitize unexpected exception messages (enabled by default).
+        /// Explicit RPC exception messages remain public application errors.
         /// </summary>
         public bool SanitizeErrors { get; set; } = true;
 
@@ -278,13 +279,22 @@ namespace RpcToolkit
 #endif
         public object? Params { get; set; }
         
-        /// <summary>Request identifier (null for notifications)</summary>
+        private object? _id;
+
+        /// <summary>Request identifier. An explicitly assigned null ID still requires a response.</summary>
 #if NETSTANDARD2_0
-        [JsonProperty("id")]
+        [JsonProperty("id", NullValueHandling = NullValueHandling.Include)]
 #else
         [JsonPropertyName("id")]
 #endif
-        public object? Id { get; set; }
+        public object? Id
+        {
+            get => _id;
+            set { _id = value; HasId = true; }
+        }
+
+        internal bool HasId { get; private set; }
+        internal bool InvalidEnvelope { get; set; }
 
         /// <summary>
         /// Creates a new empty RPC request
@@ -296,18 +306,21 @@ namespace RpcToolkit
         /// </summary>
         /// <param name="method">Method name to invoke</param>
         /// <param name="parameters">Method parameters</param>
-        /// <param name="id">Request identifier</param>
+        /// <param name="id">Request identifier; null leaves the ID omitted for a notification.
+        /// Assign Id explicitly after construction to send a null-ID request.</param>
         public RpcRequest(string method, object? parameters = null, object? id = null)
         {
             Method = method;
             Params = parameters;
-            Id = id;
+            if (id != null)
+                Id = id;
         }
 
         /// <summary>
         /// Check if this is a notification (no ID)
         /// </summary>
-        public bool IsNotification => Id == null;
+        [JsonIgnore]
+        public bool IsNotification => !HasId && !InvalidEnvelope;
     }
 
     /// <summary>
@@ -350,6 +363,7 @@ namespace RpcToolkit
         /// <summary>
         /// Check if response has an error
         /// </summary>
+        [JsonIgnore]
         public bool HasError => Error != null;
     }
 

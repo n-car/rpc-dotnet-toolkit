@@ -26,6 +26,8 @@ Method handlers receive:
 - typed params, deserialized from JSON-RPC `params`;
 - a context object, supplied when handling the request.
 
+The client cannot replace that context with values in `params`. On the wire, `params` may be omitted or contain an object or array; an explicit null or scalar parameter container is an invalid request. `jsonrpc` must be `"2.0"`, `method` must be a non-empty string, and `id`, when present, must be a string, finite number, or null.
+
 ## Handle a Request
 
 ```csharp
@@ -95,6 +97,8 @@ endpoint.AddMethod<object, string>("request.ip", (p, ctx) =>
 
 JSON-RPC notifications omit `id`. The endpoint invokes the handler and returns an empty response body.
 
+An explicit `"id": null` is a request and receives a response containing `"id": null`; successful null results retain `"result": null`. For C# request objects, use `new RpcRequest("notify")` for a notification and `new RpcRequest("call") { Id = null }` for an explicit null-ID request.
+
 ```json
 {"jsonrpc":"2.0","method":"log.write","params":{"message":"ready"}}
 ```
@@ -111,6 +115,8 @@ var responseJson = await endpoint.HandleRequestAsync(batchJson);
 ```
 
 Configure batch behavior with `RpcOptions.BatchOptions`.
+
+Invalid elements, including null or scalar entries, return individual `-32600` errors with a null ID. Valid entries continue to run. A batch containing only valid notifications returns an empty body; an empty batch is an invalid request.
 
 ```csharp
 var endpoint = new RpcEndpoint(null, new RpcOptions
@@ -151,3 +157,5 @@ Common exceptions:
 - `AuthorizationErrorException`
 - `RateLimitExceededException`
 - `ValidationErrorException`
+
+Malformed JSON returns `-32700`; malformed request envelopes return `-32600`. Both use a null response ID. Unexpected handler exceptions return `-32603` with `Internal error` when `RpcOptions.SanitizeErrors` is true (the default). Keep this enabled in production. Explicit RPC exceptions retain their intended public messages; do not include credentials or internal details in them.

@@ -115,7 +115,8 @@ public class RpcMiddleware
         {
             context.Response.Headers.Append("Access-Control-Allow-Origin", origin);
             context.Response.Headers.Append("Access-Control-Allow-Methods", "POST, OPTIONS");
-            context.Response.Headers.Append("Access-Control-Allow-Headers", "Content-Type, Authorization");
+            context.Response.Headers.Append("Access-Control-Allow-Headers", "Content-Type, Authorization, X-RPC-Safe-Enabled");
+            context.Response.Headers.Append("Access-Control-Expose-Headers", "X-RPC-Safe-Enabled");
             
             if (_options.AllowCredentials)
             {

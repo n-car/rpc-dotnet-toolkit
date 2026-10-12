@@ -35,7 +35,7 @@ dotnet build
 dotnet test
 
 # Run with coverage
-dotnet test /p:CollectCoverage=true
+dotnet test --collect:"XPlat Code Coverage"
 ```
 
 ## 📝 Guidelines
@@ -105,10 +105,11 @@ Feature requests are welcome! Please:
 
 ## 🔄 Release Process
 
-1. Update version in `.csproj`
-2. Update CHANGELOG.md
-3. Create Git tag
-4. GitHub Actions builds and publishes to NuGet
+1. Update both package versions in `.csproj` and the matching runtime/version examples.
+2. Record changes under `Unreleased` in CHANGELOG.md; do not mark a prepared version as published.
+3. Run tests and build all supported target frameworks.
+4. After release approval, create the matching Git tag and run the publishing workflow.
+5. Mark the release date only after publication succeeds. Preparing 1.2.1 locally does not publish it.
 
 ## 📄 License
 

@@ -50,10 +50,10 @@ Do not parse the JSON-RPC method in the HTTP layer to decide authorization. Regi
 
 ## ASP.NET Core
 
-Install:
+Install the ASP.NET Core integration package:
 
 ```bash
-dotnet add package RpcToolkit.AspNetCore
+dotnet add package RpcToolkit.AspNetCore --version 1.2.1
 ```
 
 Register an endpoint:
@@ -93,6 +93,7 @@ app.Run();
 
 The ASP.NET Core adapter creates an `RpcRequestContext` from `HttpContext`, including headers and `HttpContext.User`.
 It also handles CORS `OPTIONS` preflight requests on the configured RPC path.
+The CORS response allows and exposes `X-RPC-Safe-Enabled` so browser clients can negotiate Safe Mode. Requests consisting only of valid notifications receive HTTP 204; an explicit null request ID still requires a JSON-RPC response.
 
 ## Browser Client Assets
 

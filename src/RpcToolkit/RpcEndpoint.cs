@@ -205,7 +205,7 @@ namespace RpcToolkit
                 }
 
                 // Parse request
-                var isBatch = jsonRequest.TrimStart().StartsWith("[");
+                var requests = RpcRequestParser.Parse(jsonRequest, _options.SafeEnabled, out var isBatch);
 
                 if (isBatch)
                 {
@@ -215,8 +215,7 @@ namespace RpcToolkit
                         return SerializerFactory.Serialize(CreateErrorResponse(null, error), _options.SafeEnabled);
                     }
 
-                    var requests = SerializerFactory.Deserialize<List<RpcRequest>>(jsonRequest, _options.SafeEnabled);
-                    if (requests == null || requests.Count == 0)
+                    if (requests.Count == 0)
                     {
                         var error = new InvalidRequestException("Invalid batch request");
                         return SerializerFactory.Serialize(CreateErrorResponse(null, error), _options.SafeEnabled);
@@ -236,12 +235,7 @@ namespace RpcToolkit
                 }
                 else
                 {
-                    var request = SerializerFactory.Deserialize<RpcRequest>(jsonRequest, _options.SafeEnabled);
-                    if (request == null)
-                    {
-                        var error = new InvalidRequestException("Invalid request format");
-                        return SerializerFactory.Serialize(CreateErrorResponse(null, error), _options.SafeEnabled);
-                    }
+                    var request = requests[0];
 
                     var response = await HandleSingleRequestAsync(request, effectiveContext);
                     
@@ -527,12 +521,15 @@ namespace RpcToolkit
 
         private void ValidateRequest(RpcRequest request)
         {
+            if (request.InvalidEnvelope)
+                throw new InvalidRequestException("Invalid request");
+
             if (request.JsonRpc != "2.0")
             {
                 throw new InvalidRequestException("Invalid JSON-RPC version. Must be '2.0'");
             }
 
-            if (string.IsNullOrWhiteSpace(request.Method))
+            if (string.IsNullOrEmpty(request.Method))
             {
                 throw new InvalidRequestException("Method name is required");
             }
@@ -784,7 +781,7 @@ namespace RpcToolkit
                 (_, __) =>
                 {
                     var assembly = typeof(RpcEndpoint).Assembly;
-                    var version = assembly.GetName().Version?.ToString() ?? "1.0.0";
+                    var version = assembly.GetName().Version?.ToString() ?? "1.2.1";
                     var frameworkVersion = Environment.Version.ToString();
 
                     return new

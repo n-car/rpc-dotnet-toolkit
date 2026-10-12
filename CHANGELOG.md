@@ -5,7 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.2.1] - 2026-10-12
+
+### Fixed
+
+- Validate raw JSON-RPC envelopes before typed deserialization, including required version, non-empty method, object/array parameters, and valid IDs.
+- Distinguish an explicit null request ID from an omitted ID, and preserve required null result/ID fields with both supported serializers.
+- Return independent errors for invalid mixed-batch items while retaining notification suppression for valid requests only.
+- Restrict Safe Mode transformations to parameters, results, and error data; preserve method names, IDs, and error messages.
+- Preserve Newtonsoft object/array payload shapes in Safe Mode and avoid interpreting ISO-looking string IDs as dates.
+- Allow and expose the Safe Mode negotiation header in ASP.NET Core CORS responses.
+
+### Documentation
+
+- Translate the development guide into English, label historical status snapshots, and document the tightened wire contract without changing the host-supplied handler context or default error sanitization.
 
 ## [1.2.0] - 2026-09-24
 

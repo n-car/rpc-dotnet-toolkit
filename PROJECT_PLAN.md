@@ -1,15 +1,15 @@
 # RPC .NET Toolkit - Project Plan
 
-Status updated: 2026-07-30
+Status: source preparation for 1.2.1 (unreleased).
 
 This document is the active project status and roadmap. Older phase checklists were replaced because the implementation has moved beyond the original bootstrap plan.
 
-## Current Releases
+## Version Status
 
-- `RpcToolkit`: `1.2.0`
-- `RpcToolkit.AspNetCore`: `1.2.0`
-- Shared browser/Node client: `rpc-toolkit-js-client` `1.1.3`
-- Express adapter compatibility target: `rpc-express-toolkit` `4.4.2`
+- `RpcToolkit`: `1.2.1` prepared locally; previous changelog release `1.2.0`.
+- `RpcToolkit.AspNetCore`: `1.2.1` prepared locally; previous changelog release `1.2.0`.
+- Embedded browser client assets remain `rpc-toolkit-js-client` `1.1.3`; this patch does not update that dependency.
+- Cross-runtime compatibility is checked against the source revisions under test, not inferred from a package version alone.
 
 ## Current Architecture
 
@@ -36,6 +36,8 @@ rpc-dotnet-toolkit/
   - Newtonsoft.Json for `netstandard2.0`;
   - System.Text.Json for modern .NET.
 - Safe Mode type handling for string/date/big integer round-trips.
+- Raw-envelope validation, explicit null IDs, required null response fields, and independent invalid-item handling in mixed batches.
+- Safe Mode transformations limited to parameters, results, and error data, with envelope fields unchanged in both serializers.
 - Batch requests with configurable batch options.
 - Middleware system, rate limiting, CORS, auth middleware, logging.
 - Schema validation with NJsonSchema.
@@ -56,7 +58,9 @@ rpc-dotnet-toolkit/
 
 ## Verified Locally
 
-Latest local verification:
+Current patch verification: 105 .NET 8 tests and 40 protocol cases against the Newtonsoft/netstandard binary passed before the version-only update; all three core targets built. Re-run the commands below before release. Existing schema-validator compiler warnings remain.
+
+Earlier local verification commands:
 
 ```bash
 dotnet restore rpc-dotnet-toolkit.sln
@@ -66,7 +70,7 @@ DOTNET_ROLL_FORWARD=Major dotnet test tests/RpcToolkit.Tests/RpcToolkit.Tests.cs
 dotnet build examples/RpcServer.Example/RpcServer.Example.csproj --no-restore
 ```
 
-Also verified manually:
+Earlier manual checks (not a fresh deployment check for 1.2.1):
 
 - `/vendor/rpc-client/rpc-client.min.js` returns `200 OK` from the ASP.NET Core example.
 - `/vendor/rpc-client/rpc-client.mjs` returns `200 OK` from the ASP.NET Core example.

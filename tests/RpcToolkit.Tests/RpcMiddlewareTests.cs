@@ -28,6 +28,7 @@ namespace RpcToolkit.Tests
             context.Request.Method = "OPTIONS";
             context.Request.Path = "/rpc";
             context.Request.Headers.Origin = "https://app.example";
+            context.Request.Headers.AccessControlRequestHeaders = "Content-Type, X-RPC-Safe-Enabled";
 
             await middleware.InvokeAsync(context);
 
@@ -36,6 +37,8 @@ namespace RpcToolkit.Tests
             Assert.Equal(
                 "https://app.example",
                 context.Response.Headers.AccessControlAllowOrigin.ToString());
+            Assert.Contains("X-RPC-Safe-Enabled", context.Response.Headers.AccessControlAllowHeaders.ToString());
+            Assert.Contains("X-RPC-Safe-Enabled", context.Response.Headers.AccessControlExposeHeaders.ToString());
         }
     }
 }

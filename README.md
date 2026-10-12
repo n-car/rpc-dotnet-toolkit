@@ -11,16 +11,18 @@ JSON-RPC 2.0 toolkit for .NET applications. It provides a server endpoint, typed
 
 ## Packages
 
-Install the core package from NuGet:
+Version **1.2.1** tightens JSON-RPC envelope validation and Safe Mode interoperability. See the [changelog](CHANGELOG.md) for the complete release notes.
+
+Install the core package:
 
 ```bash
-dotnet add package RpcToolkit
+dotnet add package RpcToolkit --version 1.2.1
 ```
 
 For ASP.NET Core hosting, install the adapter package:
 
 ```bash
-dotnet add package RpcToolkit.AspNetCore
+dotnet add package RpcToolkit.AspNetCore --version 1.2.1
 ```
 
 ## Target Frameworks
@@ -64,6 +66,12 @@ using var client = new RpcClient("http://localhost:5000/rpc");
 
 var result = await client.CallAsync<int>("calculator.add", new { a = 5, b = 3 });
 ```
+
+## Protocol Compatibility
+
+Omit `id` for notifications; an explicit `"id": null` receives a response. In C#, `new RpcRequest("notify")` remains a notification, while `new RpcRequest("call") { Id = null }` requests a response. Successful null results retain `"result": null`. Parameters, when supplied, must be an object or array; malformed envelopes return `-32600` with `id: null`. Safe Mode transforms only `params`, `result`, and `error.data`, never method names, IDs, or error messages.
+
+Empty method names and non-finite numeric IDs are rejected. Invalid items in a batch produce their own errors without suppressing valid items; valid notifications produce no response. Handler context remains host-supplied and separate from client parameters. Unexpected handler exceptions are sanitized by default (`SanitizeErrors = true`); intentional `RpcException` messages are public application errors.
 
 ## Documentation
 

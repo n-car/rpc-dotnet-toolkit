@@ -30,10 +30,7 @@ namespace RpcToolkit.Serialization
         {
             if (value == null) return "null";
 
-            if (safeMode)
-            {
-                value = ApplySafeMode(value);
-            }
+            value = RpcWireFormat.Prepare(value, item => safeMode ? ApplySafeMode(item) : item);
 
             return JsonSerializer.Serialize(value, DefaultOptions);
         }
@@ -46,7 +43,7 @@ namespace RpcToolkit.Serialization
             }
 
             using var document = JsonDocument.Parse(json);
-            var normalized = RemoveSafeMode(document.RootElement);
+            var normalized = RemoveSafeModeForType(document.RootElement, typeof(T));
             var normalizedJson = JsonSerializer.Serialize(normalized, DefaultOptions);
             return JsonSerializer.Deserialize<T>(normalizedJson, DefaultOptions);
         }
@@ -59,7 +56,7 @@ namespace RpcToolkit.Serialization
             }
 
             using var document = JsonDocument.Parse(json);
-            var normalized = RemoveSafeMode(document.RootElement);
+            var normalized = RemoveSafeModeForType(document.RootElement, targetType);
             var normalizedJson = JsonSerializer.Serialize(normalized, DefaultOptions);
             return JsonSerializer.Deserialize(normalizedJson, targetType, DefaultOptions);
         }
@@ -81,7 +78,7 @@ namespace RpcToolkit.Serialization
                     result["params"] = ApplySafeMode(request.Params);
                 }
 
-                if (request.Id != null)
+                if (!request.IsNotification)
                 {
                     result["id"] = request.Id;
                 }
@@ -231,6 +228,41 @@ namespace RpcToolkit.Serialization
                 result[prop.Name] = ApplySafeMode(prop.Value);
             }
             return result;
+        }
+
+        private static object? RemoveSafeModeForType(JsonElement element, Type targetType)
+        {
+            if (element.ValueKind == JsonValueKind.Array && targetType != typeof(string))
+            {
+                var itemType = targetType.IsArray ? targetType.GetElementType() :
+                    targetType.IsGenericType ? targetType.GetGenericArguments()[0] : null;
+                if (itemType == typeof(RpcRequest) || itemType == typeof(RpcResponse))
+                {
+                    var items = new List<object?>();
+                    foreach (var item in element.EnumerateArray())
+                        items.Add(RemoveSafeModeForType(item, itemType));
+                    return items;
+                }
+            }
+
+            if (element.ValueKind == JsonValueKind.Object &&
+                (targetType == typeof(RpcRequest) || targetType == typeof(RpcResponse) || targetType == typeof(RpcError)))
+            {
+                var result = new Dictionary<string, object?>();
+                foreach (var property in element.EnumerateObject())
+                {
+                    var isPayload = (targetType == typeof(RpcRequest) && property.Name == "params") ||
+                        (targetType == typeof(RpcResponse) && property.Name == "result") ||
+                        (targetType == typeof(RpcError) && property.Name == "data");
+                    result[property.Name] = isPayload ? RemoveSafeMode(property.Value) :
+                        targetType == typeof(RpcResponse) && property.Name == "error"
+                            ? RemoveSafeModeForType(property.Value, typeof(RpcError))
+                            : property.Value.Clone();
+                }
+                return result;
+            }
+
+            return RemoveSafeMode(element);
         }
 
         private static object? RemoveSafeMode(JsonElement element)

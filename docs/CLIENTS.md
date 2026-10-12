@@ -72,6 +72,8 @@ await client.NotifyAsync("log.write", new { message = "ready" });
 
 Notifications do not expect a JSON-RPC result.
 
+Only an omitted `id` denotes a notification. When building batches manually, `new RpcRequest("notify")` omits the ID, while `new RpcRequest("call") { Id = null }` sends an explicit null ID and expects a response. Null successful results are represented by `"result": null`, not a missing result member.
+
 ## Error Mapping
 
 `RpcClient` converts JSON-RPC errors into typed exceptions.

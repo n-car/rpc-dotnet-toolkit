@@ -1,6 +1,6 @@
 # RPC .NET Toolkit - Status Report
 
-> Historical snapshot from 26 November 2025, preserved for reference. The versions, test counts, unfinished features, and publication status below are not the current state. See [PROJECT_PLAN.md](PROJECT_PLAN.md) and [CHANGELOG.md](CHANGELOG.md) for current implementation and pending 1.2.1 changes.
+> Historical snapshot from 26 November 2025, preserved for reference. The versions, test counts, unfinished features, and publication status below are not the current state. See [PROJECT_PLAN.md](PROJECT_PLAN.md) and [CHANGELOG.md](CHANGELOG.md) for the current implementation and the published 1.2.1 release.
 
 **Date**: 26 November 2025  
 **Version**: 1.0.0-beta  

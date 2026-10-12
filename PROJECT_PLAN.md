@@ -1,13 +1,13 @@
 # RPC .NET Toolkit - Project Plan
 
-Status: source preparation for 1.2.1 (unreleased).
+Status: 1.2.1 released on 12 October 2026 and available on NuGet.
 
 This document is the active project status and roadmap. Older phase checklists were replaced because the implementation has moved beyond the original bootstrap plan.
 
 ## Version Status
 
-- `RpcToolkit`: `1.2.1` prepared locally; previous changelog release `1.2.0`.
-- `RpcToolkit.AspNetCore`: `1.2.1` prepared locally; previous changelog release `1.2.0`.
+- `RpcToolkit`: stable `1.2.1`, available on NuGet.
+- `RpcToolkit.AspNetCore`: stable `1.2.1`, available on NuGet.
 - Embedded browser client assets remain `rpc-toolkit-js-client` `1.1.3`; this patch does not update that dependency.
 - Cross-runtime compatibility is checked against the source revisions under test, not inferred from a package version alone.
 
@@ -58,7 +58,7 @@ rpc-dotnet-toolkit/
 
 ## Verified Locally
 
-Current patch verification: 105 .NET 8 tests and 40 protocol cases against the Newtonsoft/netstandard binary passed before the version-only update; all three core targets built. Re-run the commands below before release. Existing schema-validator compiler warnings remain.
+Release 1.2.1 verification was repeated after the version update: 105 .NET 8 tests passed, including 40 protocol cases also rerun successfully against the Newtonsoft/netstandard binary; all three core targets and both ASP.NET Core targets built. Release CI and NuGet publication succeeded. Existing schema-validator compiler warnings remain.
 
 Earlier local verification commands:
 
@@ -121,9 +121,7 @@ Earlier manual checks (not a fresh deployment check for 1.2.1):
    - pack `RpcToolkit.AspNetCore`;
    - install into a temporary consumer project;
    - verify basic client/server compile.
-2. Decide versioning policy for `RpcToolkit.AspNetCore`:
-   - keep beta until more ASP.NET integration tests exist;
-   - or promote when asset hosting and middleware tests are in CI.
+2. `RpcToolkit.AspNetCore` is stable at `1.2.1`; additional asset hosting and middleware tests remain follow-up work.
 3. Add maintainer release notes:
    - tag format;
    - NuGet push steps;
